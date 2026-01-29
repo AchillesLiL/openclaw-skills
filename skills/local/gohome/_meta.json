@@ -1,0 +1,11 @@
+{
+  "owner": "local",
+  "slug": "gohome",
+  "displayName": "GoHome",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1769710418630,
+    "commit": null
+  },
+  "history": []
+}
