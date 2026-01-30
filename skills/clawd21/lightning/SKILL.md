@@ -9,7 +9,9 @@ metadata: {"clawdbot":{"emoji":"⚡"}}
 
 Send and receive Bitcoin over Lightning Network using LNI.
 
-*Made in 🤠 Texas at [PlebLab](https://pleblab.dev)*
+*Made in 🤠 Texas ❤️ [PlebLab](https://pleblab.dev)*
+
+![Lightning — Send sats from your chat.](https://files.catbox.moe/cjnf01.png)
 
 ---
 

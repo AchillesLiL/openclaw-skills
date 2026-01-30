@@ -3,11 +3,16 @@
   "slug": "lightning",
   "displayName": "Lightning",
   "latest": {
-    "version": "1.3.0",
-    "publishedAt": 1769671089548,
-    "commit": "https://github.com/clawdbot/skills/commit/bf41e1fccafaebd5db679c093241dc36eb029a88"
+    "version": "1.4.1",
+    "publishedAt": 1769727038784,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.3.0",
+      "publishedAt": 1769671089548,
+      "commit": "https://github.com/clawdbot/skills/commit/bf41e1fccafaebd5db679c093241dc36eb029a88"
+    },
     {
       "version": "1.0.3",
       "publishedAt": 1769588722508,
