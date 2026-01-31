@@ -3,9 +3,15 @@
   "slug": "openclaw-aisa",
   "displayName": "AIsa Unified API: One Key for All Paid Skills",
   "latest": {
-    "version": "1.0.3",
-    "publishedAt": 1769837111577,
-    "commit": "https://github.com/clawdbot/skills/commit/2d69cdc6128196ede77e8a4d5f2a99cbcc8ff9bd"
+    "version": "1.0.4",
+    "publishedAt": 1769839396873,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.3",
+      "publishedAt": 1769837111577,
+      "commit": "https://github.com/clawdbot/skills/commit/2d69cdc6128196ede77e8a4d5f2a99cbcc8ff9bd"
+    }
+  ]
 }
