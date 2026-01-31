@@ -1,0 +1,11 @@
+{
+  "owner": "georgi",
+  "slug": "nodetool",
+  "displayName": "Nodetool",
+  "latest": {
+    "version": "0.6.3",
+    "publishedAt": 1769875101015,
+    "commit": null
+  },
+  "history": []
+}
