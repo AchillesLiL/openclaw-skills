@@ -1,0 +1,11 @@
+{
+  "owner": "enstest1",
+  "slug": "magos-arena",
+  "displayName": "MAGOS Arena",
+  "latest": {
+    "version": "0.1.1",
+    "publishedAt": 1769938325292,
+    "commit": null
+  },
+  "history": []
+}
