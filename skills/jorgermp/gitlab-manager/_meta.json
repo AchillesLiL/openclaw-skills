@@ -1,0 +1,11 @@
+{
+  "owner": "jorgermp",
+  "slug": "gitlab-manager",
+  "displayName": "Gitlab Manager",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1769963580953,
+    "commit": null
+  },
+  "history": []
+}
