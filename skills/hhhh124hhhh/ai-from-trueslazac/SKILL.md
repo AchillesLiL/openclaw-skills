@@ -1,3 +1,8 @@
+---
+name: ai-from-trueslazac
+description: AI content from TrueSlazac Twitter account. Use when accessing AI-related prompts, templates, or discussions from social media sources.
+---
+
 # AI Prompt Template Skill
 
 ## Description
