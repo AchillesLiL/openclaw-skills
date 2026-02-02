@@ -228,14 +228,15 @@ if [ "$BAGS_TX_COUNT" -gt 0 ]; then
     -d "{\"token\": \"$BAGS_JWT_TOKEN\", \"walletAddress\": \"$BAGS_WALLET\"}" \
     | jq -r '.response.privateKey')
   
-  # Sign and submit each transaction
+  # Sign and submit each transaction (see WALLETS.md for script setup)
   echo "$BAGS_CONFIG_TXS" | jq -c '.[]' | while read BAGS_TX_OBJ; do
     BAGS_UNSIGNED_TX=$(echo "$BAGS_TX_OBJ" | jq -r '.transaction')
-    BAGS_SIGNED_TX=$(node sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_UNSIGNED_TX")
+    BAGS_SIGNED_TX=$(node ~/.config/bags/sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_UNSIGNED_TX")
     
-    curl -s -X POST https://api.mainnet-beta.solana.com \
+    curl -s -X POST "https://public-api-v2.bags.fm/api/v1/solana/send-transaction" \
+      -H "x-api-key: $BAGS_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"sendTransaction\",\"params\":[\"$BAGS_SIGNED_TX\",{\"encoding\":\"base64\"}]}"
+      -d '{"transaction": "'"$BAGS_SIGNED_TX"'"}'
   done
   
   unset BAGS_PRIVATE_KEY
@@ -284,9 +285,12 @@ curl -s -X POST "https://public-api-v2.bags.fm/api/v1/token-launch/create-launch
 
 ---
 
-## Step 5: Sign and Submit Launch
+## Step 5: Sign, Submit, and Confirm Launch
 
 ```bash
+BAGS_RPC_URL="https://gene-v4mswe-fast-mainnet.helius-rpc.com"
+BAGS_MAX_RETRIES=10
+
 BAGS_LAUNCH_TX=$(echo "$BAGS_LAUNCH_RESPONSE" | jq -r '.response.transaction')
 
 # Export private key
@@ -295,21 +299,48 @@ BAGS_PRIVATE_KEY=$(curl -s -X POST https://public-api-v2.bags.fm/api/v1/agent/wa
   -d "{\"token\": \"$BAGS_JWT_TOKEN\", \"walletAddress\": \"$BAGS_WALLET\"}" \
   | jq -r '.response.privateKey')
 
-# Sign transaction
-BAGS_SIGNED_TX=$(node sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_LAUNCH_TX")
+# Sign transaction (see WALLETS.md for script setup)
+BAGS_SIGNED_TX=$(node ~/.config/bags/sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_LAUNCH_TX")
 unset BAGS_PRIVATE_KEY
 
-# Submit to Solana
-BAGS_RESULT=$(curl -s -X POST https://api.mainnet-beta.solana.com \
+# Submit via Bags API
+BAGS_RESULT=$(curl -s -X POST "https://public-api-v2.bags.fm/api/v1/solana/send-transaction" \
+  -H "x-api-key: $BAGS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"jsonrpc\": \"2.0\",
-    \"id\": 1,
-    \"method\": \"sendTransaction\",
-    \"params\": [\"$BAGS_SIGNED_TX\", {\"encoding\": \"base64\"}]
-  }")
+  -d '{"transaction": "'"$BAGS_SIGNED_TX"'"}')
 
-BAGS_SIGNATURE=$(echo "$BAGS_RESULT" | jq -r '.result // empty')
+BAGS_SIGNATURE=$(echo "$BAGS_RESULT" | jq -r '.response // empty')
+
+# Poll for confirmation (10 retries, 500ms delay)
+for i in $(seq 1 $BAGS_MAX_RETRIES); do
+  sleep 0.5
+  
+  BAGS_STATUS=$(curl -s -X POST "$BAGS_RPC_URL" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "getSignatureStatuses",
+      "params": [["'"$BAGS_SIGNATURE"'"], {"searchTransactionHistory": true}]
+    }')
+  
+  BAGS_VALUE=$(echo "$BAGS_STATUS" | jq -r '.result.value[0] // empty')
+  
+  if [ -n "$BAGS_VALUE" ] && [ "$BAGS_VALUE" != "null" ]; then
+    BAGS_TX_ERR=$(echo "$BAGS_VALUE" | jq -r '.err // empty')
+    BAGS_CONFIRM_STATUS=$(echo "$BAGS_VALUE" | jq -r '.confirmationStatus // empty')
+    
+    if [ -n "$BAGS_TX_ERR" ] && [ "$BAGS_TX_ERR" != "null" ]; then
+      echo "❌ Launch failed on-chain: $BAGS_TX_ERR"
+      exit 1
+    fi
+    
+    if [ "$BAGS_CONFIRM_STATUS" = "confirmed" ] || [ "$BAGS_CONFIRM_STATUS" = "finalized" ]; then
+      echo "✅ Token launch $BAGS_CONFIRM_STATUS!"
+      break
+    fi
+  fi
+done
 ```
 
 ---
@@ -401,6 +432,8 @@ BAGS_CONFIG_TX_COUNT=$(echo "$BAGS_CONFIG_TXS" | jq 'length')
 if [ "$BAGS_CONFIG_TX_COUNT" -gt 0 ]; then
   echo "✓ Signing $BAGS_CONFIG_TX_COUNT config transaction(s)..."
   
+  BAGS_RPC_URL="https://gene-v4mswe-fast-mainnet.helius-rpc.com"
+  
   BAGS_PRIVATE_KEY=$(curl -s -X POST https://public-api-v2.bags.fm/api/v1/agent/wallet/export \
     -H "Content-Type: application/json" \
     -d "{\"token\": \"$BAGS_JWT_TOKEN\", \"walletAddress\": \"$BAGS_WALLET\"}" \
@@ -408,11 +441,27 @@ if [ "$BAGS_CONFIG_TX_COUNT" -gt 0 ]; then
   
   echo "$BAGS_CONFIG_TXS" | jq -c '.[]' | while read BAGS_TX_OBJ; do
     BAGS_UNSIGNED_TX=$(echo "$BAGS_TX_OBJ" | jq -r '.transaction')
-    BAGS_SIGNED_TX=$(node sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_UNSIGNED_TX")
+    BAGS_SIGNED_TX=$(node ~/.config/bags/sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_UNSIGNED_TX")
     
-    curl -s -X POST https://api.mainnet-beta.solana.com \
+    BAGS_CFG_RESULT=$(curl -s -X POST "https://public-api-v2.bags.fm/api/v1/solana/send-transaction" \
+      -H "x-api-key: $BAGS_API_KEY" \
       -H "Content-Type: application/json" \
-      -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"sendTransaction\",\"params\":[\"$BAGS_SIGNED_TX\",{\"encoding\":\"base64\"}]}" > /dev/null
+      -d '{"transaction": "'"$BAGS_SIGNED_TX"'"}')
+    
+    BAGS_CFG_SIG=$(echo "$BAGS_CFG_RESULT" | jq -r '.response // empty')
+    
+    # Wait for confirmation
+    for i in $(seq 1 10); do
+      sleep 0.5
+      BAGS_CFG_STATUS=$(curl -s -X POST "$BAGS_RPC_URL" \
+        -H "Content-Type: application/json" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"getSignatureStatuses","params":[["'"$BAGS_CFG_SIG"'"],{"searchTransactionHistory":true}]}')
+      
+      BAGS_CFG_CONFIRM=$(echo "$BAGS_CFG_STATUS" | jq -r '.result.value[0].confirmationStatus // empty')
+      if [ "$BAGS_CFG_CONFIRM" = "confirmed" ] || [ "$BAGS_CFG_CONFIRM" = "finalized" ]; then
+        break
+      fi
+    done
   done
   
   unset BAGS_PRIVATE_KEY
@@ -441,41 +490,83 @@ BAGS_LAUNCH_TX=$(echo "$BAGS_LAUNCH_RESPONSE" | jq -r '.response.transaction')
 echo "✓ Launch transaction created"
 echo ""
 
-# Step 4: Sign and submit
+# Step 4: Sign, submit, and confirm
+BAGS_RPC_URL="https://gene-v4mswe-fast-mainnet.helius-rpc.com"
+BAGS_MAX_RETRIES=10
+
 echo "📡 Signing and submitting..."
 BAGS_PRIVATE_KEY=$(curl -s -X POST https://public-api-v2.bags.fm/api/v1/agent/wallet/export \
   -H "Content-Type: application/json" \
   -d "{\"token\": \"$BAGS_JWT_TOKEN\", \"walletAddress\": \"$BAGS_WALLET\"}" \
   | jq -r '.response.privateKey')
 
-BAGS_SIGNED_TX=$(node sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_LAUNCH_TX")
+BAGS_SIGNED_TX=$(node ~/.config/bags/sign-transaction.js "$BAGS_PRIVATE_KEY" "$BAGS_LAUNCH_TX")
 unset BAGS_PRIVATE_KEY
 
-BAGS_RESULT=$(curl -s -X POST https://api.mainnet-beta.solana.com \
+BAGS_RESULT=$(curl -s -X POST "https://public-api-v2.bags.fm/api/v1/solana/send-transaction" \
+  -H "x-api-key: $BAGS_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"jsonrpc\": \"2.0\",
-    \"id\": 1,
-    \"method\": \"sendTransaction\",
-    \"params\": [\"$BAGS_SIGNED_TX\", {\"encoding\": \"base64\"}]
-  }")
+  -d '{"transaction": "'"$BAGS_SIGNED_TX"'"}')
 
-BAGS_SIGNATURE=$(echo "$BAGS_RESULT" | jq -r '.result // empty')
-BAGS_ERROR=$(echo "$BAGS_RESULT" | jq -r '.error.message // empty')
+BAGS_SIGNATURE=$(echo "$BAGS_RESULT" | jq -r '.response // empty')
+BAGS_ERROR=$(echo "$BAGS_RESULT" | jq -r '.error // empty')
 
-if [ -n "$BAGS_SIGNATURE" ]; then
+if [ -z "$BAGS_SIGNATURE" ] || [ "$BAGS_SIGNATURE" = "null" ]; then
+  echo "❌ Failed to submit: $BAGS_ERROR"
+  exit 1
+fi
+
+echo "📋 Signature: $BAGS_SIGNATURE"
+echo "⏳ Confirming transaction..."
+
+# Poll for confirmation (10 retries, 500ms delay)
+BAGS_CONFIRMED=false
+for i in $(seq 1 $BAGS_MAX_RETRIES); do
+  sleep 0.5
+  
+  BAGS_STATUS=$(curl -s -X POST "$BAGS_RPC_URL" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "getSignatureStatuses",
+      "params": [["'"$BAGS_SIGNATURE"'"], {"searchTransactionHistory": true}]
+    }')
+  
+  BAGS_VALUE=$(echo "$BAGS_STATUS" | jq -r '.result.value[0] // empty')
+  
+  if [ -n "$BAGS_VALUE" ] && [ "$BAGS_VALUE" != "null" ]; then
+    BAGS_TX_ERR=$(echo "$BAGS_VALUE" | jq -r '.err // empty')
+    BAGS_CONFIRM_STATUS=$(echo "$BAGS_VALUE" | jq -r '.confirmationStatus // empty')
+    
+    if [ -n "$BAGS_TX_ERR" ] && [ "$BAGS_TX_ERR" != "null" ]; then
+      echo ""
+      echo "❌ Launch failed on-chain: $BAGS_TX_ERR"
+      exit 1
+    fi
+    
+    if [ "$BAGS_CONFIRM_STATUS" = "confirmed" ] || [ "$BAGS_CONFIRM_STATUS" = "finalized" ]; then
+      BAGS_CONFIRMED=true
+      echo ""
+      echo "✅ Token Launched ($BAGS_CONFIRM_STATUS)"
+      echo "================================"
+      echo "Token:     $BAGS_TOKEN_NAME ($BAGS_TOKEN_SYMBOL)"
+      echo "Mint:      $BAGS_TOKEN_MINT"
+      echo "Signature: $BAGS_SIGNATURE"
+      echo ""
+      echo "View:      https://bags.fm/$BAGS_TOKEN_MINT"
+      echo "Explorer:  https://solscan.io/tx/$BAGS_SIGNATURE"
+      break
+    fi
+  fi
+  
+  echo "   Polling $i/$BAGS_MAX_RETRIES..."
+done
+
+if [ "$BAGS_CONFIRMED" = false ]; then
   echo ""
-  echo "✅ Token Launched"
-  echo "================="
-  echo "Token:     $BAGS_TOKEN_NAME ($BAGS_TOKEN_SYMBOL)"
-  echo "Mint:      $BAGS_TOKEN_MINT"
-  echo "Signature: $BAGS_SIGNATURE"
-  echo ""
-  echo "View:      https://bags.fm/$BAGS_TOKEN_MINT"
-  echo "Explorer:  https://solscan.io/tx/$BAGS_SIGNATURE"
-else
-  echo ""
-  echo "❌ Launch failed: $BAGS_ERROR"
+  echo "⚠️ Transaction not confirmed after $BAGS_MAX_RETRIES attempts"
+  echo "   Signature: $BAGS_SIGNATURE"
   exit 1
 fi
 ```

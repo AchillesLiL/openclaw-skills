@@ -51,7 +51,7 @@ fi
 ### 2. Check Wallet Balance
 
 ```bash
-BAGS_BALANCE=$(curl -s -X POST https://api.mainnet-beta.solana.com \
+BAGS_BALANCE=$(curl -s -X POST https://gene-v4mswe-fast-mainnet.helius-rpc.com \
   -H "Content-Type: application/json" \
   -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"$BAGS_WALLET\"]}" \
   | jq '.result.value')
@@ -121,7 +121,7 @@ Maintain state at `~/.config/bags/heartbeat-state.json`:
   },
   "lastWalletBalance": 1500000000,
   "lastClaimableTotal": 750000000,
-  "skillVersion": "1.0.0"
+  "skillVersion": "2.0.1"
 }
 ```
 
@@ -226,7 +226,7 @@ else
 fi
 
 # 2. Check wallet balance
-BAGS_BALANCE=$(curl -s -X POST https://api.mainnet-beta.solana.com \
+BAGS_BALANCE=$(curl -s -X POST https://gene-v4mswe-fast-mainnet.helius-rpc.com \
   -H "Content-Type: application/json" \
   -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"$BAGS_WALLET\"]}" \
   | jq '.result.value // 0')

@@ -3,11 +3,16 @@
   "slug": "bags",
   "displayName": "Bags",
   "latest": {
-    "version": "0.0.5",
-    "publishedAt": 1769848885417,
-    "commit": "https://github.com/clawdbot/skills/commit/d2ee139d1d19acfd05ababaa5130bfc5eda8a714"
+    "version": "2.0.1",
+    "publishedAt": 1769998322839,
+    "commit": null
   },
   "history": [
+    {
+      "version": "0.0.5",
+      "publishedAt": 1769848885417,
+      "commit": "https://github.com/clawdbot/skills/commit/d2ee139d1d19acfd05ababaa5130bfc5eda8a714"
+    },
     {
       "version": "0.0.1",
       "publishedAt": 1769831614314,
