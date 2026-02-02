@@ -3,11 +3,16 @@
   "slug": "prompt-guard",
   "displayName": "Prompt Guard",
   "latest": {
-    "version": "2.5.2",
-    "publishedAt": 1769886350701,
-    "commit": "https://github.com/clawdbot/skills/commit/f21ff2aa7d4c95b09f5b19b90b6a044fffb55e58"
+    "version": "2.5.3",
+    "publishedAt": 1770050798085,
+    "commit": null
   },
   "history": [
+    {
+      "version": "2.5.2",
+      "publishedAt": 1769886350701,
+      "commit": "https://github.com/clawdbot/skills/commit/f21ff2aa7d4c95b09f5b19b90b6a044fffb55e58"
+    },
     {
       "version": "2.5.1",
       "publishedAt": 1769775656309,

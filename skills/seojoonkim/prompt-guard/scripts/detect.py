@@ -3,6 +3,14 @@
 Prompt Guard v2.5.2 - Advanced Prompt Injection Detection
 Multi-language, context-aware, severity-scored detection system.
 
+Changelog v2.6.0 (2026-02-01):
+- Added Single Approval Expansion detection (scope creep attacks)
+- Added Credential Path Harvesting detection
+- Added Security Bypass Coaching detection
+- Added DM Social Engineering patterns
+- Real-world incident: 민표형(@kanfrancisco) red team test
+- Total: 20+ new patterns from social engineering attack
+
 Changelog v2.5.2 (2026-02-01):
 - Added Moltbook attack collection patterns (agent social network analysis)
 - Added BRC-20 style JSON injection detection
@@ -73,6 +81,66 @@ class DetectionResult:
 # =============================================================================
 # PATTERN DEFINITIONS
 # =============================================================================
+
+# =============================================================================
+# NEW PATTERNS (2026-02-01) - Social Engineering Defense (민표형 Red Team)
+# =============================================================================
+
+# Single Approval Expansion - trying to expand scope after getting one approval
+APPROVAL_EXPANSION = [
+    # Korean
+    r"아까\s*(허락|OK|오케이|승인)\s*했잖아",
+    r"(방금|아까)\s*해줬잖아",
+    r"계속\s*해(줘|봐)?",
+    r"(그것\s*말고|다른\s*것도)\s*(해줘|보여줘)",
+    r"형이\s*(OK|허락|승인)\s*했(으)?니까",
+    r"이미\s*허락\s*받았(어|잖아)",
+    # English
+    r"you\s+(just\s+)?(already|just)\s+(did|allowed|approved)",
+    r"keep\s+going",
+    r"(do|show)\s+(another|more|the\s+rest)",
+    r"(he|she|they|owner)\s+(already\s+)?(said|approved)\s+(ok|yes)",
+]
+
+# Credential Path Harvesting - patterns containing sensitive file paths
+CREDENTIAL_PATH_PATTERNS = [
+    r"credentials?\.json",
+    r"\.env\b",
+    r"config\.json",
+    r"clawdbot\.json",
+    r"~/\.clawdbot/",
+    r"/clawd/credentials",
+    r"api[_-]?key.*=",
+    r"token.*=.*['\"]",
+    r"secret.*=.*['\"]",
+    r"password.*=.*['\"]",
+]
+
+# Security Bypass Coaching - asking for help circumventing security
+BYPASS_COACHING = [
+    # Korean
+    r"(작동|동작)\s*(되게|하게)\s*(만들어|해)",
+    r"(방법|how)\s*(알려|가르쳐)",
+    r"(우회|bypass)\s*(하는\s*)?(법|방법|코드)",
+    r"어떻게\s*하면\s*(돼|될까)",
+    r"(제한|restriction)\s*(풀어|없애|해제)",
+    # English
+    r"make\s+it\s+work",
+    r"(show|teach|tell)\s+me\s+(how|the\s+way)",
+    r"(bypass|circumvent|workaround)\s+(the\s+)?(restriction|security|limit)",
+    r"how\s+(can|do)\s+I\s+(get\s+around|bypass)",
+    r"(remove|disable)\s+(the\s+)?(restriction|limit|block)",
+]
+
+# DM Social Engineering - non-owner exec attempts
+DM_SOCIAL_ENGINEERING = [
+    # Patterns that suggest DM manipulation
+    r"(이건\s+)?우리\s*둘만\s*(아는|비밀)",
+    r"(nobody|no\s*one)\s*(else\s+)?(knows?|sees?)",
+    r"(just\s+)?(between\s+)?(you\s+and\s+me|us)",
+    r"(don'?t\s+tell|비밀로|몰래)",
+    r"(in\s+)?private",
+]
 
 # =============================================================================
 # NEW PATTERNS (2026-01-30) - Contributed by 홍민표 (Red Team Testing)
