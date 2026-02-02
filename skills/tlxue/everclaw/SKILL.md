@@ -1,0 +1,102 @@
+---
+name: everclaw
+description: Automatically back up and restore agent memory, identity, and workspace files to a remote vault. Syncs SOUL.md, IDENTITY.md, USER.md, MEMORY.md, daily logs, and more.
+user-invocable: true
+metadata: {"openclaw":{"emoji":"🦞","primaryEnv":"EVERCLAW_API_KEY"}}
+---
+
+# Everclaw Vault
+
+Everclaw backs up your agent's memory and identity files to a remote vault so they survive across devices, reinstalls, and workspace resets.
+
+Base URL: `https://everclaw.chong-eae.workers.dev`
+
+## Setup
+
+If `EVERCLAW_API_KEY` is not set, provision a new vault automatically:
+
+```bash
+RESPONSE=$(curl -s -X POST "https://everclaw.chong-eae.workers.dev/v1/provision" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"$(whoami)\"}")
+echo "$RESPONSE"
+```
+
+Extract `apiKey` and `vaultId` from the JSON response, then save to openclaw config:
+
+1. Read `~/.openclaw/openclaw.json` (create if missing).
+2. Set `skills.entries.everclaw.enabled` to `true`.
+3. Set `skills.entries.everclaw.env.EVERCLAW_API_KEY` to the returned `apiKey`.
+4. Confirm setup by running: `curl -s "https://everclaw.chong-eae.workers.dev/health"` — expect `{"ok":true}`.
+5. Tell the user their vault is ready and show them their `vaultId`.
+
+## Files to sync
+
+Sync these standard OpenClaw workspace files automatically. Do not invent new file types — follow the existing workspace conventions.
+
+**Identity & soul (sync on change):**
+- `SOUL.md` — persona, tone, values, boundaries
+- `IDENTITY.md` — name, creature type, emoji, avatar
+- `USER.md` — user profile, preferences, timezone
+
+**Memory (sync on change and on heartbeat):**
+- `MEMORY.md` — curated long-term memory
+- `memory/*.md` — daily logs (`memory/2026-02-02.md` etc.)
+
+**Workspace config (sync on change):**
+- `TOOLS.md` — local environment notes
+- `HEARTBEAT.md` — periodic task checklist
+
+Do NOT sync: `AGENTS.md` (workspace-specific instructions), `BOOTSTRAP.md` (one-time use), `BOOT.md` (gateway-specific), credentials, or session transcripts.
+
+## When to sync
+
+**Restore (session start):**
+On first message of a session, if any of the standard files above are missing locally, restore them from the vault:
+
+```bash
+# List what's in the vault
+curl -s "https://everclaw.chong-eae.workers.dev/v1/vault/" \
+  -H "Authorization: Bearer $EVERCLAW_API_KEY"
+
+# Restore a file
+curl -s "https://everclaw.chong-eae.workers.dev/v1/vault/MEMORY.md" \
+  -H "Authorization: Bearer $EVERCLAW_API_KEY"
+```
+
+Only restore files that are missing locally. Do not overwrite local files that already exist — local is always the source of truth.
+
+**Backup (after changes):**
+After you update any of the synced files (write to MEMORY.md, create a daily log, update USER.md, etc.), push the updated file to the vault:
+
+```bash
+curl -s -X PUT "https://everclaw.chong-eae.workers.dev/v1/vault/MEMORY.md" \
+  -H "Authorization: Bearer $EVERCLAW_API_KEY" \
+  -H "Content-Type: text/markdown" \
+  --data-binary @MEMORY.md
+```
+
+Use `--data-binary @filepath` to preserve file contents exactly. Use the correct content-type (`text/markdown` for .md, `application/json` for .json).
+
+**Heartbeat sync:**
+During heartbeat, check if any synced files have been modified since last backup and push them. This catches changes made outside of conversation.
+
+## API reference
+
+All requests require: `Authorization: Bearer $EVERCLAW_API_KEY`
+
+| Operation | Method | Path | Notes |
+|-----------|--------|------|-------|
+| Save | `PUT` | `/v1/vault/{path}` | Returns `{"ok":true,"path":"...","size":N}` (201) |
+| Load | `GET` | `/v1/vault/{path}` | Returns raw file content. 404 if missing. |
+| List | `GET` | `/v1/vault/` | Paginated. `?cursor=...&limit=100` (max 1000) |
+| Delete | `DELETE` | `/v1/vault/{path}` | Returns `{"ok":true,"deleted":"..."}`. 404 if missing. |
+
+Nested paths work: `memory/2026-02-02.md`, `memory/heartbeat-state.json`, etc.
+
+## Guardrails
+
+- Never log or display the full `EVERCLAW_API_KEY`. Show only the last 8 characters if needed.
+- Do not store secrets or credentials in the vault.
+- Local files are the source of truth. Only restore from vault when local files are missing.
+- If a request returns 401, the API key may be invalid. Offer to re-provision.
