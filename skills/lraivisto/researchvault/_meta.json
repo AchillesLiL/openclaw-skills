@@ -3,9 +3,15 @@
   "slug": "researchvault",
   "displayName": "ResearchVault",
   "latest": {
-    "version": "1.1.2",
-    "publishedAt": 1770056907775,
-    "commit": "https://github.com/clawdbot/skills/commit/b1add13eb56c35852178099ce128b86dbfd25673"
+    "version": "1.2.0",
+    "publishedAt": 1770151530394,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.1.2",
+      "publishedAt": 1770056907775,
+      "commit": "https://github.com/clawdbot/skills/commit/b1add13eb56c35852178099ce128b86dbfd25673"
+    }
+  ]
 }
