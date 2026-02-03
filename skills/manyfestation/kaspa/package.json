@@ -1,0 +1,23 @@
+{
+  "name": "kaspa-wallet-skill",
+  "version": "1.0.0",
+  "description": "Standalone Kaspa wallet CLI skill for LLM agents",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/kaswallet.js",
+    "build": "tsc",
+    "dev": "npx ts-node --esm scripts/kaswallet.ts"
+  },
+  "dependencies": {
+    "@kasdk/nodejs": "^0.15.2",
+    "websocket": "^1.0.35"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.7.2",
+    "ts-node": "^10.9.2"
+  },
+  "engines": {
+    "node": ">=20.13.1"
+  }
+}

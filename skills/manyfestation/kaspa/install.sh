@@ -1,30 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Kaspa Wallet CLI - Standalone Installer
+# Installs from npm - no local SDK required
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT_DIR"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 is required but not found."
-  exit 1
-fi
+echo "=== Kaspa Wallet CLI Installer ==="
+echo ""
 
-# Ensure pip exists (some minimal python builds omit it)
-if ! python3 -m pip --version >/dev/null 2>&1; then
-  echo "pip not found; trying python3 -m ensurepip..."
-  python3 -m ensurepip --upgrade || {
-    echo "Failed to bootstrap pip (ensurepip unavailable)."
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo "ERROR: Node.js not found. Install Node.js >= 20.13.1"
     exit 1
-  }
 fi
 
-DEPS_DIR="$ROOT_DIR/.pydeps"
-mkdir -p "$DEPS_DIR"
+NODE_VERSION=$(node -v | sed 's/v//')
+echo "Node.js version: $NODE_VERSION"
 
-echo "Installing dependencies into $DEPS_DIR (no sudo, no venv)..."
-python3 -m pip install -U pip
-python3 -m pip install -U --target "$DEPS_DIR" kaspa
+# Install dependencies
+echo ""
+echo "Installing dependencies from npm..."
+cd "$ROOT_DIR"
+npm install
 
 chmod +x "$ROOT_DIR/kaswallet.sh"
-echo "Installed kaswallet.sh CLI."
-echo "Next: ./kaswallet.sh --help"
+
+echo ""
+echo "=== Installation complete ==="
+echo ""
+echo "Usage:"
+echo "  ./kaswallet.sh help"
+echo "  ./kaswallet.sh balance --address kaspa:..."
+echo "  ./kaswallet.sh node-info"
+echo ""
+echo "For sending, set environment variables:"
+echo "  export KASPA_MNEMONIC='your 12-24 word seed phrase'"
+echo "  ./kaswallet.sh send --to kaspa:... --amount 0.5 --dry-run"

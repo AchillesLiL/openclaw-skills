@@ -1,79 +1,78 @@
 ---
 name: Kaspa Wallet
-description: |
-  Self-contained Kaspa wallet CLI skill (no preconfigured MCP server required).
-  Use when user wants to:
-  - Check KAS balance for an address
-  - Inspect node/server info
-  - Send KAS using a mnemonic/private key provided via environment variables
-  - Generate payment request URIs
-metadata:
-  slug: kaspa-wallet
-  display_name: Kaspa Wallet
+description: Standalone Kaspa wallet CLI. Send KAS, check balances.
 ---
 
-# Kaspa Wallet (Self-contained)
+# Kaspa Wallet CLI
 
-This skill is designed to “just work” after running a local installer. It does **not** require the user to pre-install/configure an MCP server.
+## Install
 
-The agent interacts with Kaspa by running a local CLI:
+```bash
+bash install.sh
+```
 
-- `./kaswallet.sh balance ...`
-- `./kaswallet.sh node-info ...`
-- `./kaswallet.sh send ...`
+**Requires:** Node.js >= 20
 
-## Install (one-time)
+## Environment
 
-Run:
-- `bash install.sh`
+```bash
+export KASPA_MNEMONIC="your 12-24 word seed phrase"
+# or
+export KASPA_PRIVATE_KEY="hex"
+```
 
-This creates a local virtualenv in `.venv/` and installs/updates Python deps (via `pip`).
+Optional: `KASPA_NETWORK=mainnet|testnet-10`
 
-## Configuration (env vars)
+## Commands
 
-These env vars are read by `kaswallet.sh`:
+```bash
+./kaswallet.sh balance [address]           # Check balance
+./kaswallet.sh info                        # Network status
+./kaswallet.sh send <to> <amount|max> [fee] # Send KAS
+./kaswallet.sh uri [address] [amount] [msg] # Payment URI
+```
 
-- `KASPA_RPC_URL` (optional): wRPC endpoint (WebSocket URL). If unset, the client will try public node discovery (PNN) if supported by the installed SDK, otherwise it will fail with a clear message.
-- `KASPA_NETWORK` (optional): `mainnet` (default) or `testnet-10` / `devnet`.
+## Examples
 
-Wallet secrets (recommended to set in the runtime, not in chat):
+```bash
+# Check any address
+./kaswallet.sh balance kaspa:qrc8y...
 
-- `KASPA_MNEMONIC` (optional): Mnemonic seed phrase (12–24 words).
-- `KASPA_PRIVATE_KEY` (optional): Private key hex (single-key wallet).
+# Check wallet balance (uses KASPA_MNEMONIC)
+./kaswallet.sh balance
 
-Timeouts:
+# Send 0.5 KAS
+./kaswallet.sh send kaspa:qrc8y... 0.5
 
-- `KASPA_CONNECT_TIMEOUT_MS` (optional, default 60000)
-- `KASPA_REQUEST_TIMEOUT_MS` (optional, default 60000)
+# Send entire balance
+./kaswallet.sh send kaspa:qrc8y... max
 
-## Safety rules (must follow)
+# Send with priority fee (0.001 KAS extra)
+./kaswallet.sh send kaspa:qrc8y... 0.5 0.001
+```
 
-- Never print `KASPA_MNEMONIC` / `KASPA_PRIVATE_KEY` contents.
-- Before **any** send, do a preflight (balance + fee estimate if available) and show a summary.
-- Require explicit user confirmation before sending (or require `--yes` flag).
+## Storage Mass Error
 
-## Common workflows
+If you see `Storage mass exceeds maximum`:
 
-### Check balance
+1. **Cause:** Change output too small (< 0.2 KAS)
+2. **Auto-fix:** CLI adjusts to send full balance when change is dust
+3. **Manual fix:** Use `max` or add priority fee:
+   ```bash
+   ./kaswallet.sh send kaspa:qrc8y... 0.5 0.001  # add 0.001 KAS fee
+   ```
+4. **Retry:** If tx fails, try again with slightly higher fee (0.0005 → 0.001 → 0.002)
 
-Run:
-- `./kaswallet.sh balance --address kaspa:...`
+## Output
 
-### Node / server info
+All commands return JSON:
+```json
+{"status":"sent","txid":"abc...","from":"kaspa:...","to":"kaspa:...","amount":"0.5","fee":"0.0002"}
+```
 
-Run:
-- `./kaswallet.sh node-info`
+Errors:
+```json
+{"error":"Storage mass exceeds maximum"}
+```
 
-### Send KAS (recommended flow)
-
-1) Preflight (no broadcast):
-- `./kaswallet.sh send --to kaspa:... --amount 0.9 --dry-run`
-
-2) Ask user to confirm the exact `to`, `amount`, and fees, then broadcast:
-- `./kaswallet.sh send --to kaspa:... --amount 0.9 --yes`
-
-### Payment URI
-
-Run:
-- `./kaswallet.sh payment-uri --address kaspa:... --amount 1.23 --message "..." --label "..."`
-
+- Transactions execute immediately (no confirmation prompt)
