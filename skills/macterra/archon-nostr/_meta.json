@@ -1,0 +1,11 @@
+{
+  "owner": "macterra",
+  "slug": "archon-nostr",
+  "displayName": "Archon Nostr",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1770081313880,
+    "commit": null
+  },
+  "history": []
+}
