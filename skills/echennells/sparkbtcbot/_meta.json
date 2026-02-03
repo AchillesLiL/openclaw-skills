@@ -1,0 +1,11 @@
+{
+  "owner": "echennells",
+  "slug": "sparkbtcbot",
+  "displayName": "Spark Bitcoin & Lightning Wallet for AI Agents",
+  "latest": {
+    "version": "0.2.0",
+    "publishedAt": 1770098827638,
+    "commit": null
+  },
+  "history": []
+}
