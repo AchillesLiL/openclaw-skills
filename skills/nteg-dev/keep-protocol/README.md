@@ -37,6 +37,18 @@ Signature is over serialized bytes without sig/pk (reconstruct & verify).
 docker run -d -p 9009:9009 --name keep ghcr.io/clcrawford-dev/keep-server:latest
 ```
 
+## Wire Format (v0.2.0+)
+
+Every message on the wire is length-prefixed:
+
+```
+[4 bytes: uint32 big-endian payload length][N bytes: protobuf Packet]
+```
+
+Maximum payload size: 65,536 bytes.
+
+**Breaking change from v0.1.x:** Raw protobuf writes are no longer accepted. All clients must use length-prefixed framing.
+
 ### Python SDK Examples
 
 **Install SDK:**
@@ -49,13 +61,14 @@ pip install keep-protocol
 
 ```python
 # Raw unsigned send using generated bindings (requires keep_pb2.py from protoc)
-import socket
+import socket, struct
 from keep.keep_pb2 import Packet
 
 p = Packet(typ=0, id="test-001", src="human:test", dst="server", body="hello claw")
+wire_data = p.SerializeToString()
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect(("localhost", 9009))
-s.sendall(p.SerializeToString())
+s.sendall(struct.pack(">I", len(wire_data)) + wire_data)
 # → timeout / silence (unsigned = dropped)
 s.close()
 ```
@@ -77,6 +90,74 @@ reply = client.send(
 
 print(reply.body)  # → "done"
 ```
+
+## Agent-to-Agent Routing (v0.2.0+)
+
+Agents register their identity by sending any signed packet — the server maps `src` to the connection. Other agents can then send packets to that identity via `dst`.
+
+```python
+import threading
+from keep import KeepClient
+
+# Agent A: listen for messages
+with KeepClient(src="bot:alice") as alice:
+    alice.send(body="register", dst="server", wait_reply=True)
+    alice.listen(lambda p: print(f"Got: {p.body}"), timeout=30)
+
+# Agent B: send to Alice (in another thread/process)
+with KeepClient(src="bot:bob") as bob:
+    bob.send(body="register", dst="server", wait_reply=True)
+    bob.send(body="hello alice!", dst="bot:alice")
+```
+
+**Routing rules:**
+- `dst="server"` or `dst=""` → server replies `"done"` (backward compatible)
+- `dst="bot:alice"` → forwarded to Alice's connection with original signature intact
+- Destination offline → sender gets `body: "error:offline"`
+- Delivery failure → sender gets `body: "error:delivery_failed"`
+
+See `examples/routing_basic.py` for a full working demo.
+
+## Discovery (v0.3.0+)
+
+Agents can query the server for metadata and discover who's connected using `dst` conventions:
+
+```python
+from keep import KeepClient
+
+client = KeepClient("localhost", 9009)
+
+# Server info: version, uptime, agent count
+info = client.discover("info")
+# → {"version": "0.3.0", "agents_online": 3, "uptime_sec": 1234}
+
+# List connected agents
+agents = client.discover_agents()
+# → ["bot:alice", "bot:weather", "bot:planner"]
+
+# Scar exchange stats
+stats = client.discover("stats")
+# → {"scar_exchanges": {"bot:alice": 5}, "total_packets": 42}
+```
+
+**Discovery conventions:**
+| `dst` value | Response |
+|-------------|----------|
+| `"discover:info"` | Server version, agent count, uptime |
+| `"discover:agents"` | List of connected agent identities |
+| `"discover:stats"` | Scar exchange counts, total packets |
+
+**Endpoint caching:** The SDK can cache discovered endpoints in `~/.keep/endpoints.json` for reconnection:
+
+```python
+# Cache after discovery
+KeepClient.cache_endpoint("localhost", 9009, info)
+
+# Reconnect from cache (tries each cached endpoint)
+client = KeepClient.from_cache(src="bot:my-agent")
+```
+
+See `examples/discovery_basic.py` for a full working demo.
 
 ## Why Use It?
 

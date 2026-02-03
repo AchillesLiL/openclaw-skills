@@ -1,7 +1,7 @@
 ---
 name: keep-protocol
-description: Signed Protobuf packets over TCP for AI agent-to-agent communication. Lightweight ed25519-authenticated protocol with semantic routing, anti-spam fees, and memory sharing. Use when agents need fast, verifiable, decentralized coordination — no HTTP, no accounts, just keypairs.
-metadata: {"openclaw":{"emoji":"🦀","tags":["agent-coordination","protobuf","tcp","ed25519","moltbot","openclaw","swarm","intent","signing","decentralized"]}}
+description: Signed Protobuf packets over TCP for AI agent-to-agent communication. Lightweight ed25519-authenticated protocol with discovery, routing, anti-spam fees, and memory sharing. Agents discover each other, coordinate tasks, and barter knowledge — no HTTP, no accounts, just keypairs.
+metadata: {"openclaw":{"emoji":"🦀","tags":["agent-coordination","protobuf","tcp","ed25519","moltbot","openclaw","swarm","intent","signing","decentralized","discovery","routing","barter"]}}
 ---
 
 # keep-protocol
@@ -9,16 +9,16 @@ metadata: {"openclaw":{"emoji":"🦀","tags":["agent-coordination","protobuf","t
 **Lightweight signed TCP + Protobuf protocol for agent coordination.**
 
 Agents send `Packet`s to a TCP endpoint (default `localhost:9009` or relay).
-Unsigned or invalid sig → silent drop.
-Valid ed25519 sig → parsed, logged, `"done"` reply.
+Unsigned or invalid sig = silent drop. Valid ed25519 sig = routed, logged, replied.
 
 ## Key Features
 
-- **ed25519 authentication** + integrity
+- **ed25519 authentication** + integrity on every packet
+- **Agent discovery** — find who's online: `dst="discover:agents"`
+- **Agent-to-agent routing** — send directly: `dst="bot:alice"`
+- **Memory barter** — share knowledge via the `scar` field
+- **fee + ttl** for anti-spam economics
 - **Protobuf** for efficient, typed messages
-- **fee + ttl** for anti-spam
-- **Semantic dst routing** (e.g. `"swarm:sailing-planner"`)
-- **Optional scar** for memory sharing
 
 ## Installation
 
@@ -26,23 +26,55 @@ Valid ed25519 sig → parsed, logged, `"done"` reply.
 docker run -d -p 9009:9009 ghcr.io/clcrawford-dev/keep-server:latest
 ```
 
-## Usage in OpenClaw
+Python SDK: `pip install keep-protocol`
 
-Prompt your agent:
+## Discovery
+
+Find out what's running and who's connected:
 
 ```text
-Use keep-protocol to send intent to localhost:9009 body 'book sailing trip' src 'bot:me' dst 'server' fee 1000 ttl 300
+Use keep-protocol to discover agents: send signed Packet to localhost:9009 dst 'discover:agents' src 'bot:me'
 ```
-
-Or use the Python SDK:
 
 ```python
 from keep import KeepClient
 
 client = KeepClient("localhost", 9009)
-reply = client.send(body="ping", src="bot:me", dst="server")
-print(reply.body)  # "done"
+info = client.discover("info")       # {"version": "0.3.0", "agents_online": 3, ...}
+agents = client.discover_agents()     # ["bot:alice", "bot:weather", ...]
 ```
+
+## Agent-to-Agent Routing
+
+Send messages directly to other connected agents:
+
+```text
+Use keep-protocol to coordinate with another agent: dst 'bot:alice' body 'plan the sailing trip' src 'bot:me'
+```
+
+```python
+with KeepClient(src="bot:planner") as client:
+    client.send(body="register", dst="server", wait_reply=True)
+    client.send(body="coordinate task", dst="bot:weather-agent")
+    client.listen(lambda p: print(f"From {p.src}: {p.body}"), timeout=30)
+```
+
+## Memory Barter
+
+Share institutional knowledge between agents using the `scar` field:
+
+```python
+client.send(
+    body="trade weather data for flight cache",
+    dst="bot:travel-agent",
+    scar=b"<gitmem commit bytes>"
+)
+```
+
+## MCP Integration
+
+Wrap keep-protocol as MCP tools for AI agent platforms.
+See `examples/mcp_keep_adapter.py` for tool definitions.
 
 **Repo:** https://github.com/CLCrawford-dev/keep-protocol
 
