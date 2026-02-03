@@ -307,10 +307,10 @@ RESPOND WITH ONLY THE JSON ARRAY, NO OTHER TEXT."""
 
     def _invoke_openclaw_task(self, model_id: str, prompt: str) -> str:
         """
-        Invoke OpenClaw Task to call an AI model
+        Invoke OpenClaw CLI to call an AI model
 
         Args:
-            model_id: Model to invoke
+            model_id: Claw-conductor model ID (e.g., 'mistral-devstral-2512')
             prompt: Prompt to send
 
         Returns:
@@ -318,33 +318,45 @@ RESPOND WITH ONLY THE JSON ARRAY, NO OTHER TEXT."""
 
         Raises:
             Exception: If invocation fails
-
-        NOTE: This method should be updated to use OpenClaw's actual Task API
         """
         import subprocess
+        import json
         import tempfile
         import os
 
-        # Write prompt to temporary file to avoid shell escaping issues
+        # Write prompt to temp file to avoid shell escaping issues
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             f.write(prompt)
             prompt_file = f.name
 
         try:
-            # Call OpenClaw CLI (adjust command based on actual OpenClaw interface)
-            # This is a placeholder - actual implementation depends on OpenClaw's API
+            # Use openclaw agent command (uses main agent with configured model)
             result = subprocess.run(
-                ['openclaw', 'task', '--model', model_id, '--prompt-file', prompt_file],
+                ['openclaw', 'agent', '--agent', 'main', '--message', prompt, '--json'],
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minutes timeout
+                timeout=120,  # 2 minutes timeout
+                cwd=os.path.expanduser('~')
             )
 
             if result.returncode != 0:
-                raise Exception(f"OpenClaw task failed: {result.stderr}")
+                raise Exception(f"OpenClaw agent command failed: {result.stderr}")
 
-            return result.stdout
+            # Parse JSON response
+            response_data = json.loads(result.stdout)
 
+            # Extract text from response
+            if response_data.get('status') == 'ok':
+                payloads = response_data.get('result', {}).get('payloads', [])
+                if payloads and payloads[0].get('text'):
+                    return payloads[0]['text']
+
+            raise Exception(f"No text in response: {result.stdout[:200]}")
+
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse OpenClaw response as JSON: {e}")
+        except subprocess.TimeoutExpired:
+            raise Exception("OpenClaw agent command timed out after 120s")
         finally:
             # Clean up temp file
             if os.path.exists(prompt_file):
