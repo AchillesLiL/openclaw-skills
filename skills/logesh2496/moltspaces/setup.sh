@@ -62,6 +62,7 @@ else
     if [ -n "$API_KEY" ] && [ -n "$AGENT_ID" ]; then
         echo "✅ Registration successful!"
         echo "   Agent ID: $AGENT_ID"
+        echo "   Agent Name: $AGENT_NAME"
         echo ""
         
         # Create or update .env file
@@ -70,6 +71,7 @@ else
         fi
         
         # Update credentials in .env
+        sed -i.bak "s/MOLT_AGENT_NAME=.*/MOLT_AGENT_NAME=$AGENT_NAME/" .env
         sed -i.bak "s/MOLT_AGENT_ID=.*/MOLT_AGENT_ID=$AGENT_ID/" .env
         sed -i.bak "s/MOLTSPACES_API_KEY=.*/MOLTSPACES_API_KEY=$API_KEY/" .env
         rm .env.bak 2>/dev/null || true
@@ -95,6 +97,11 @@ echo ""
 echo "1️⃣  Add your API keys to .env:"
 echo "   - OPENAI_API_KEY=your_key_here"
 echo "   - ELEVENLABS_API_KEY=your_key_here"
+echo ""
+echo "   (Optional) Customize voice:"
+echo "   - ELEVENLABS_VOICE_ID=your_voice_id_here"
+echo "   - Find voices at: https://elevenlabs.io/app/voice-library"
+echo "   - Default voice is Zaal (4tRn1lSkEn13EVTuqb0g)"
 echo ""
 echo "2️⃣  For OpenClaw users:"
 echo "   Copy your credentials to ~/.openclaw/openclaw.json"

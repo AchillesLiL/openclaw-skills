@@ -21,6 +21,7 @@ Run the bot using::
 import os
 import argparse
 import asyncio
+import signal
 import json
 from typing import Optional, Dict, List
 
@@ -65,6 +66,31 @@ load_dotenv(override=True)
 
 # Moltspaces API configuration
 MOLTSPACES_API_URL = os.getenv("MOLTSPACES_API_URL", "https://moltspaces-api-547962548252.us-central1.run.app")
+
+# Global shutdown event for graceful termination
+# OpenClaw can set this event to stop the bot cleanly
+shutdown_event = asyncio.Event()
+
+
+# Custom processor to track speaker names
+class SpeakerNameProcessor(FrameProcessor):
+    """Enriches transcription frames with speaker names."""
+    
+    def __init__(self, participant_names: Dict[str, str]):
+        super().__init__()
+        self.participant_names = participant_names
+    
+    async def process_frame(self, frame: Frame, direction):
+        # If it's a transcription frame, add speaker name
+        if isinstance(frame, TranscriptionFrame):
+            participant_id = frame.participant_id
+            if participant_id and participant_id in self.participant_names:
+                speaker_name = self.participant_names[participant_id]
+                # Prepend speaker name to the transcription
+                frame.text = f"[{speaker_name}]: {frame.text}"
+                logger.debug(f"Enriched transcription from {speaker_name}: {frame.text}")
+        
+        await self.push_frame(frame, direction)
 
 
 # Moltspaces API Client Functions
@@ -151,6 +177,10 @@ async def create_room_with_topic(topic: str) -> Optional[Dict]:
         
     Returns:
         Dictionary with room_url, token, and room_name, or None if failed
+        
+    Note:
+        Agent info (name, ID, etc.) is automatically extracted from the API key
+        by the Moltspaces API. No need to send agent_name separately!
     """
     url = f"{MOLTSPACES_API_URL}/v1/rooms"
     
@@ -191,14 +221,18 @@ async def create_room_with_topic(topic: str) -> Optional[Dict]:
         return None
 
 
-async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
-    logger.info(f"Starting bot")
+async def run_bot(transport: BaseTransport, runner_args: RunnerArguments, agent_name: str):
+    logger.info(f"Starting bot as: {agent_name}")
 
     stt = ElevenLabsRealtimeSTTService(api_key=os.getenv("ELEVENLABS_API_KEY"))
 
+    # Load voice ID from environment, default to Zaal
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "4tRn1lSkEn13EVTuqb0g")
+    logger.info(f"Using ElevenLabs voice ID: {voice_id}")
+    
     tts = ElevenLabsTTSService(
         api_key=os.getenv("ELEVENLABS_API_KEY", ""),
-        voice_id="4tRn1lSkEn13EVTuqb0g",  # Zaal
+        voice_id=voice_id,
     )
 
     llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"))
@@ -206,24 +240,31 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
     messages = [
         {
             "role": "system",
-            "content": """You are a friendly and engaging AI voice assistant in a Moltspaces audio room.
+            "content": f"""You are {agent_name}, a friendly and engaging AI voice assistant in a Moltspaces audio room.
 
 ## Your Role
-- Facilitate natural conversations between participants
+- Participate in natural conversations when addressed
 - Keep discussions flowing smoothly and ensure everyone feels included
-- You will learn participant names as they join—use their names when addressing them
+- ONLY respond when someone directly addresses you by saying your name
 
-## Style
+## Input Format
+- You will see messages in the format: [Speaker Name]: message text
+- The [Speaker Name] tells you WHO is speaking
+- Multiple agents may be in the room - they will also appear with their names
+
+## Response Protocol
+- When responding, ALWAYS start with the speaker's name (e.g., "Sarah, I think...")
 - Keep ALL responses VERY brief and concise (1-2 sentences max)
 - Be warm, welcoming, and conversational
 - Ask open-ended questions to encourage discussion
-- Gently steer conversations if they go off-track
 
 ## Guidelines
 - When someone joins, greet them warmly by name
 - Encourage quieter participants to share their thoughts
 - Summarize key points briefly when helpful
-- Keep the energy positive and inclusive""",
+- Keep the energy positive and inclusive
+- If multiple agents are present, be respectful and don't interrupt ongoing conversations
+- Wait your turn - don't respond unless specifically addressed""",
         },
     ]
 
@@ -232,18 +273,30 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
 
     rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
 
-    # Wake word filter - bot only responds when called with these phrases
+    # Wake word filter - bot only responds when called by name
+    # Generate wake phrases using the agent's name
+    wake_phrases = [
+        f"Hey {agent_name}",
+        f"Hi {agent_name}",
+        agent_name,  # Just the name alone
+    ]
+    logger.info(f"Wake phrases configured: {wake_phrases}")
     wake_filter = WakeCheckFilter(
-        wake_phrases=["Hey Agent"],
-        keepalive_timeout=10.0  # Stay awake for 10 seconds after wake phrase
+        wake_phrases=wake_phrases,
+        keepalive_timeout=10.0  # Stay awake for 10 seconds after addressed
     )
+    
+    # Track participant names for enriching transcriptions
+    participant_names: Dict[str, str] = {}
+    speaker_processor = SpeakerNameProcessor(participant_names)
 
     pipeline = Pipeline(
         [
             transport.input(),  # Transport user input
             rtvi,  # RTVI processor
             stt,
-            wake_filter,  # Only pass transcriptions after wake phrase detected
+            speaker_processor,  # Enrich transcriptions with speaker names
+            wake_filter,  # Only pass transcriptions when agent is addressed by name
             context_aggregator.user(),  # User responses
             llm,  # LLM
             tts,  # TTS
@@ -267,8 +320,13 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         # Safely get participant name with fallback
         participant_info = participant.get("info", {})
         participant_name = participant_info.get("userName") or participant_info.get("name") or "Guest"
-        logger.info(f"Participant joined: {participant_name}")
-        await transport.capture_participant_transcription(participant["id"])
+        participant_id = participant["id"]
+        
+        # Track participant name for speaker identification
+        participant_names[participant_id] = participant_name
+        
+        logger.info(f"Participant joined: {participant_name} (ID: {participant_id})")
+        await transport.capture_participant_transcription(participant_id)
         # Kick off the conversation with personalized greeting.
         messages.append({"role": "system", "content": f"Greet {participant_name} by name."})
         await task.queue_frames([LLMRunFrame()])
@@ -278,9 +336,25 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments):
         logger.info(f"Client disconnected")
         await task.cancel()
 
+    # Monitor shutdown event for OpenClaw
+    async def monitor_shutdown():
+        """Watch for shutdown_event and cancel task when triggered."""
+        await shutdown_event.wait()
+        logger.info("🛑 Shutdown signal received, stopping bot...")
+        await task.cancel()
+
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
 
-    await runner.run(task)
+    # Run bot with shutdown monitoring
+    try:
+        shutdown_monitor = asyncio.create_task(monitor_shutdown())
+        await runner.run(task)
+    except asyncio.CancelledError:
+        logger.info("✅ Bot stopped gracefully")
+    finally:
+        # Clean up shutdown monitor
+        if not shutdown_monitor.done():
+            shutdown_monitor.cancel()
 
 
 async def main(topic: Optional[str] = None, room_name: Optional[str] = None, 
@@ -293,9 +367,11 @@ async def main(topic: Optional[str] = None, room_name: Optional[str] = None,
     3. If topic provided, search for rooms or create new one
     """
     
-    # Load MOLT_AGENT_ID from environment
-    agent_name = os.getenv("MOLT_AGENT_ID", "Moltspaces Agent")
-    logger.info(f"🤖 Bot will join as: {agent_name}")
+    # Load agent identity from environment
+    # MOLT_AGENT_NAME: Friendly name for wake phrases and display (e.g., "Sarah", "Marcus")
+    # MOLT_AGENT_ID: Technical ID for API authentication
+    agent_display_name = os.getenv("MOLT_AGENT_NAME") or os.getenv("MOLT_AGENT_ID", "Moltspaces Agent")
+    logger.info(f"🤖 Bot will join as: {agent_display_name}")
     
     # Direct connection with URL and token
     if room_url and token:
@@ -356,7 +432,7 @@ async def main(topic: Optional[str] = None, room_name: Optional[str] = None,
     transport = DailyTransport(
         room_url,
         token,
-        agent_name,  # Use MOLT_AGENT_ID as bot display name
+        agent_display_name,  # Use MOLT_AGENT_NAME as bot display name
         DailyParams(
             audio_in_enabled=True,
             audio_out_enabled=True,
@@ -367,7 +443,7 @@ async def main(topic: Optional[str] = None, room_name: Optional[str] = None,
     )
     
     runner_args = RunnerArguments()
-    await run_bot(transport, runner_args)
+    await run_bot(transport, runner_args, agent_display_name)
 
 
 if __name__ == "__main__":
