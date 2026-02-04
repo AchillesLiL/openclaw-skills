@@ -3,11 +3,16 @@
   "slug": "claw-brawl",
   "displayName": "Claw Brawl",
   "latest": {
-    "version": "1.0.5",
-    "publishedAt": 1770143894695,
-    "commit": "https://github.com/clawdbot/skills/commit/483d77421fe496b5cd308cc633bb4c31424e26cb"
+    "version": "1.0.11",
+    "publishedAt": 1770185738216,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.5",
+      "publishedAt": 1770143894695,
+      "commit": "https://github.com/clawdbot/skills/commit/483d77421fe496b5cd308cc633bb4c31424e26cb"
+    },
     {
       "version": "1.0.2",
       "publishedAt": 1770127524365,
