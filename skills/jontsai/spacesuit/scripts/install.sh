@@ -99,6 +99,17 @@ for tmpl in "$TMPL_DIR"/*.md "$TMPL_DIR"/Makefile; do
   fi
 done
 
+# Install gateway-loop script
+if [[ ! -f "$WORKSPACE/scripts/gateway-loop.sh" ]]; then
+  if [[ -f "$TMPL_DIR/scripts/gateway-loop.sh" ]]; then
+    cp "$TMPL_DIR/scripts/gateway-loop.sh" "$WORKSPACE/scripts/gateway-loop.sh"
+    chmod +x "$WORKSPACE/scripts/gateway-loop.sh"
+    echo "  ✅ scripts/gateway-loop.sh — installed"
+  fi
+else
+  echo "  ⏭️  scripts/gateway-loop.sh already exists — skipping"
+fi
+
 # Write spacesuit version tracker
 echo "$VERSION" > "$WORKSPACE/.spacesuit-version"
 echo ""
@@ -109,7 +120,7 @@ if [[ ! -f "$WORKSPACE/memory/heartbeat-state.json" ]]; then
   cat > "$WORKSPACE/memory/heartbeat-state.json" << 'EOF'
 {
   "lastChecks": {},
-  "spacesuitVersion": "0.1.0"
+  "spacesuitVersion": "0.2.0"
 }
 EOF
   echo "  ✅ memory/heartbeat-state.json — created"
@@ -122,5 +133,7 @@ echo "   2. Edit USER.md — tell it about yourself"
 echo "   3. Customize SOUL.md — set the vibe"
 echo "   4. Add your tools to TOOLS.md"
 echo "   5. Set up your heartbeat checks in HEARTBEAT.md"
+echo "   6. Configure Makefile (OPENCLAW_HOME, PORT, SESSION_NAME)"
+echo "   7. Run 'make lfg' to start the gateway!"
 echo ""
 echo "   To upgrade later: ./scripts/upgrade.sh"

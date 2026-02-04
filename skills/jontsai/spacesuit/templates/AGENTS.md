@@ -9,12 +9,20 @@
 
 ## 🖥️ Gateway Deployment
 
-<!-- How do you run your gateway? tmux, LaunchAgent, systemd? Document it here. -->
-<!-- Example:
-**Decision:** Run gateway via `tmux` + watcher script.
+**Decision:** Run gateway via `tmux` + `gateway-loop.sh` (auto-restart with exponential backoff).
 
-**Restart command:** `tmux kill-session -t gateway && tmux new-session -d -s gateway './scripts/gateway-loop.sh'`
--->
+**Commands:**
+| Command | What it does |
+|---------|-------------|
+| `make lfg` | 🚀 Install/update skills + start gateway in tmux |
+| `make start` | Start gateway in tmux (skip skill sync) |
+| `make stop` | Stop the gateway |
+| `make restart` | Stop + start |
+| `make status` | Check if running |
+| `make logs` | Attach to tmux session (view logs) |
+
+**Manual restart:** `make restart`
+**Attach to see logs:** `tmux attach -t gateway` (or whatever SESSION_NAME is set to)
 
 ## 🗣️ Channel Conventions
 

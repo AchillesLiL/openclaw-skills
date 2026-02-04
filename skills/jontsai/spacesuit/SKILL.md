@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | **Name** | `spacesuit` |
-| **Version** | `0.1.0` |
+| **Version** | `0.2.0` |
 | **Author** | jontsai |
 | **License** | MIT |
 | **Category** | framework |
@@ -27,15 +27,20 @@ The Spacesuit is a batteries-included framework layer for OpenClaw workspaces. I
 - **Decision logging** — mandatory audit trail for architectural decisions
 - **Meta-learning framework** — expert-first research methodology (Dunning-Kruger aware)
 - **Security baseline** — secret transmission policy, prompt injection defense, data classification
+- **Gateway management** — Makefile with `make lfg` (tmux + auto-restart gateway-loop)
+- **One-command startup** — `make lfg` installs skills + launches gateway in tmux
 
 ## Installation
 
 ```bash
-# First-time install (creates workspace files with markers)
-make init
+# Install spacesuit
+clawhub install spacesuit
 
-# Upgrade existing workspace (replaces only SPACESUIT sections)
-make upgrade
+# First-time setup (creates workspace files, Makefile, gateway-loop)
+./skills/spacesuit/scripts/install.sh
+
+# Start the gateway
+make lfg
 ```
 
 ## How It Works
@@ -58,7 +63,8 @@ OpenClaw reads hardcoded filenames from the workspace root (`AGENTS.md`, `SOUL.m
 | `USER.md` | — (template only) | All about your human |
 | `MEMORY.md` | Long-term memory structure | Project notes, personal context |
 | `SECURITY.md` | Full security baseline | Contact-specific alert channels |
-| `Makefile` | — (template only) | Gateway management targets |
+| `Makefile` | Gateway management (`lfg`, `start`, `stop`, etc.) | Custom targets, port/session config |
+| `scripts/gateway-loop.sh` | Auto-restart wrapper (tmux) | Slack alerts, custom hooks |
 
 ## Upgrade Path
 
