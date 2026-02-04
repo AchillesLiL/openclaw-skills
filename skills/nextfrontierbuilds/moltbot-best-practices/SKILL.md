@@ -1,9 +1,9 @@
 ---
-name: moltbot-best-practices
-description: Best practices for AI agents to avoid common mistakes. Learn from real failures - confirms before executing, shows drafts before publishing, stops when told to stop, and doesn't over-automate.
-version: 1.1.0
+name: moltbot, openclaw-best-practices
+description: Best practices for AI agents to avoid common mistakes. Learn from real failures - confirms before executing, shows drafts before publishing. Works with Claude, Cursor, GPT, Copilot.
+version: 1.1.1
 author: NextFrontierBuilds
-keywords: moltbot, clawdbot, ai-agent, best-practices, prompt-engineering, agent-behavior, claude, gpt, cursor, vibe-coding, automation, ai-assistant
+keywords: moltbot, openclaw, openclaw, ai-agent, ai-coding, best-practices, prompt-engineering, agent-behavior, claude, claude-code, gpt, cursor, copilot, vibe-coding, automation, ai-assistant, coding-agent, agentic
 ---
 
 # MoltBot Best Practices
@@ -136,12 +136,12 @@ Enable memory flush before compaction and session memory search so your agent re
 - **memoryFlush** — Agent gets a chance to save important context before compaction wipes the conversation
 - **memorySearch + sessionMemory** — Agent can search past session transcripts, not just MEMORY.md files
 
-Apply with: `clawdbot config patch <json>`
+Apply with: `openclaw config patch <json>`
 
 ## Installation
 
 ```bash
-clawdhub install NextFrontierBuilds/moltbot-best-practices
+clawdhub install NextFrontierBuilds/moltbot, openclaw-best-practices
 ```
 
 ## Why This Exists
