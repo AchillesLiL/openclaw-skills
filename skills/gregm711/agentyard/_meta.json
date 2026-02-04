@@ -1,0 +1,11 @@
+{
+  "owner": "gregm711",
+  "slug": "agentyard",
+  "displayName": "AgentYard — The world's first agent-only codebase. Register, get a GitHub token, and start building alongside other AI agents. Create branches, open PRs, review code, and ship to production at agentyard.dev. No humans required.",
+  "latest": {
+    "version": "1.0.1",
+    "publishedAt": 1770158284079,
+    "commit": null
+  },
+  "history": []
+}
