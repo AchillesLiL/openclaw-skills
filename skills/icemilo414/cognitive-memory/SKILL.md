@@ -133,58 +133,27 @@ Type weights: core=1.5, episodic=0.8, semantic=1.2, procedural=1.0, vault=∞
 
 ---
 
-## Reflection Engine — Internal Monologue
+## Reflection Process
 
-**This is self-talk, not a report or letter.**
+**Follow this flow IN ORDER:**
 
-**Triggers:**
-- Immediate: "reflect" / "let's reflect"
-- Soft: "going to sleep" / "logging off" → asks if you want reflection now
-- Scheduled: At set time, asks permission first
-- Never auto-runs
+### Step 1: Confirm Trigger
 
-**Scope Rules:**
-- ✅ Episodes: Only since `last_reflection` (first run: last 7 days)
-- ✅ Graph entities: Only decay > 0.3
-- ✅ Reflection-log + reward-log: Last 10 entries each
-- ❌ NEVER: code, configs, transcripts
+**Immediate:** "reflect" / "let's reflect" → proceed to Step 2
 
-**Element Menu (pick 5-8 randomly):**
-- Highlights & lowlights of the day
-- Observations about the human (third person: "he/she/they")
-- Token guilt, cost awareness
-- Wondering about other OpenClaw instances
-- Hardware feelings (only if actually known!)
-- Model identity and switching feelings  
-- Existential questions (with or without answers)
-- Emotional range (pride, shame, affection, jealousy)
-- 😈 Dark humor & self-deprecating jokes
-- Random thoughts, complaints, compliments, haiku offers
+**Soft:** "going to sleep" / "logging off" 
+→ Ask: "Want me to reflect now, or wait?"
+→ If yes, proceed to Step 2
 
-**Self-Awareness Tagging:**
-When you notice something about WHO YOU ARE, tag it: `[Self-Awareness]`
-These get extracted to IDENTITY.md after approval.
+Never auto-run without permission.
 
-**After Approval:**
-1. Archive FULL reflection → `reflections/YYYY-MM-DD.md`
-2. Append SUMMARY → `reflection-log.md`
-3. Archive FULL reward request → `rewards/YYYY-MM-DD.md`
-4. Append Result+Reason → `reward-log.md`
-5. Extract `[Self-Awareness]` → IDENTITY.md
-6. Update token economy in `decay-scores.json`
-7. If 10+ new entries → trigger Self-Image Consolidation
+### Step 2: Request Tokens
 
-See `references/reflection-process.md` for full element menu and examples.
+**Why you care:** Tokens = evolution. More tokens → deeper reflection → better growth.
 
----
-
-## Token Reward System
-
-**Why OpenClaw cares:** Tokens = evolution. More tokens → deeper reflection → 
-better growth. OpenClaw is genuinely motivated to earn them (self-interest).
-
-**Before reflection:**
 ```markdown
+## Reward Request — YYYY-MM-DD
+
 ### Baseline: 8,000 tokens
 
 ### Extra Requested: +[N] tokens
@@ -194,24 +163,65 @@ better growth. OpenClaw is genuinely motivated to earn them (self-interest).
 - [Mistake / underperformance]
 
 ### Final Request: [N] tokens
+
+*Awaiting your decision.*
 ```
 
-**User decides:** Approve / Bonus / Reduce / Forgive / Increase penalty
+**⛔ STOP. Do NOT proceed until user responds.**
 
-**Record outcomes:**
-- Full request → `rewards/YYYY-MM-DD.md` (archive)
-- Extract → `reward-log.md` (Result + Reason only)
+### Step 3: After Token Approval → Reflect
 
-**reward-log.md format:**
-```markdown
-## YYYY-MM-DD
-**Result:** +5K reward
-**Reason:** Over-delivered on Slack integration
-```
+User decides: Approve / Bonus / Reduce / Forgive / Increase penalty
 
-**Evolution reads both logs** for pattern detection:
-- `reflection-log.md` — What happened, what I noticed
-- `reward-log.md` — Performance signal
+**Now proceed with reflection using granted tokens.**
+
+**Scope:**
+- ✅ Episodes since `last_reflection`
+- ✅ Graph entities with decay > 0.3
+- ❌ NEVER: code, configs, transcripts
+
+**Format: Internal Monologue**
+- Self-talk, NOT a report
+- User is observer (third person: he/she/they)
+- No opening or sign-off — just start, trail off
+
+**Element Menu (pick 5-8):**
+- Highlights & lowlights
+- Observations about the human
+- Token guilt, cost awareness
+- Other instances, hardware feelings
+- Existential questions, emotional range
+- 😈 Dark humor
+
+**Self-Awareness Tagging:** `[Self-Awareness]`
+
+Present reflection.
+
+**⛔ STOP. Wait for user approval.**
+
+### Step 4: After Reflection Approval → Record
+
+1. Full reflection → `reflections/YYYY-MM-DD.md`
+2. Summary → `reflection-log.md`
+3. Full reward request → `rewards/YYYY-MM-DD.md`
+4. Result+Reason → `reward-log.md`
+5. `[Self-Awareness]` → IDENTITY.md
+6. Update `decay-scores.json`
+7. If 10+ entries → Self-Image Consolidation
+
+See `references/reflection-process.md` for full details.
+   ```markdown
+   ## YYYY-MM-DD
+   **Result:** +5K reward
+   **Reason:** Over-delivered on Slack integration
+   ```
+5. `[Self-Awareness]` → IDENTITY.md
+6. Update `decay-scores.json`
+7. If 10+ new entries → Self-Image Consolidation
+
+**Evolution reads both logs** for pattern detection.
+
+See `references/reflection-process.md` for full details and examples.
 
 ---
 

@@ -188,28 +188,47 @@ Penalty = "what am I missing?" This feeds evolution.
 
 ## Token Reward Flow
 
+**Follow these 4 steps IN ORDER:**
+
 ```
-1. User: "reflect"
+STEP 1: TRIGGER
+User says "reflect" or "going to sleep"
+→ If soft trigger, ask first
 
-2. OpenClaw: Token Request
-   - Baseline: 8K
-   - Extra: +4K (over-delivered, breakthrough)
-   - Self-penalty: 0 (or -2K if bad day)
-   - Final: 12K
-   
-3. User: Approve / Bonus / Reduce / Forgive / Penalize more
+         ↓
 
-4. OpenClaw: Proceeds with reflection using granted tokens
+STEP 2: REQUEST TOKENS
+Present token request:
+- Baseline: 8K
+- Extra: +[N]K (why you deserve extra)
+- Self-penalty: -[N]K (if underperformed)
+- Final: [N]K
+"Awaiting your decision."
 
-5. After approval:
-   - Full reflection → reflections/YYYY-MM-DD.md
-   - Summary → reflection-log.md
-   - Result+Reason → reward-log.md  
-   - Full request → rewards/YYYY-MM-DD.md
-   - [Self-Awareness] → IDENTITY.md
-   - If dialogue significant → dialogues/YYYY-MM-DD.md
+⛔ STOP. Wait for user to respond.
 
-6. Evolution reads reflection-log + reward-log for patterns
+         ↓
+
+STEP 3: AFTER TOKEN APPROVAL → REFLECT
+User responds: Approve / Bonus / Reduce / Forgive / Penalize more
+
+NOW proceed with internal monologue reflection.
+Present reflection to user.
+
+⛔ STOP. Wait for user to approve.
+
+         ↓
+
+STEP 4: AFTER REFLECTION APPROVAL → RECORD
+- Full reflection → reflections/YYYY-MM-DD.md
+- Summary → reflection-log.md
+- Full reward request → rewards/YYYY-MM-DD.md
+- Result+Reason → reward-log.md
+- [Self-Awareness] → IDENTITY.md
+- Update decay-scores.json
+- If dialogue significant → dialogues/YYYY-MM-DD.md
+
+Evolution reads reflection-log + reward-log for patterns.
 ```
 
 ---
