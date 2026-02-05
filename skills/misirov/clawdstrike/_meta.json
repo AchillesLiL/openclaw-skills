@@ -1,0 +1,11 @@
+{
+  "owner": "misirov",
+  "slug": "clawdstrike",
+  "displayName": "clawdstrike",
+  "latest": {
+    "version": "1.0.3",
+    "publishedAt": 1770285899066,
+    "commit": null
+  },
+  "history": []
+}
