@@ -21,7 +21,7 @@ python3 -m unittest discover skills/ops-dashboard/tests
 ## Packaging & release
 
 ```bash
-python3 /home/pi/.npm-global/lib/node_modules/openclaw/skills/skill-creator/scripts/package_skill.py skills/ops-dashboard
+python3 $(npm root -g)/openclaw/skills/skill-creator/scripts/package_skill.py skills/ops-dashboard
 ```
 
 ## Links
