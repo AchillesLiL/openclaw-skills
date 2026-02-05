@@ -3,9 +3,15 @@
   "slug": "clawdvine-skill",
   "displayName": "Clawdvine",
   "latest": {
-    "version": "0.1.0",
-    "publishedAt": 1770142296731,
-    "commit": "https://github.com/clawdbot/skills/commit/a66a0751601d1a4007c90ec3243221562b603c7a"
+    "version": "1.1.0",
+    "publishedAt": 1770300620769,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "0.1.0",
+      "publishedAt": 1770142296731,
+      "commit": "https://github.com/clawdbot/skills/commit/a66a0751601d1a4007c90ec3243221562b603c7a"
+    }
+  ]
 }
