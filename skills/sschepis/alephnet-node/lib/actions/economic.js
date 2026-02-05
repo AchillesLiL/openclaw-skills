@@ -21,8 +21,15 @@ let nodeId = null;
 
 /**
  * Initialize managers with node ID
+ * Attempts to hydrate identity from environment variables if present.
  */
 function initManagers(id, basePath = './data') {
+    // Prefer environment variable ID if provided (override)
+    if (process.env.ALEPHNET_NODE_ID) {
+        id = process.env.ALEPHNET_NODE_ID;
+        console.log(`[Economic] Using configured Node ID: ${id}`);
+    }
+    
     nodeId = id;
     
     if (!wallet) {
@@ -39,6 +46,30 @@ function initManagers(id, basePath = './data') {
             nodeId: id,
             basePath: path.join(basePath, 'content')
         });
+    }
+
+    // Hydrate Identity from Env Vars (if available)
+    if (process.env.ALEPHNET_PUBKEY && process.env.ALEPHNET_PRIVKEY) {
+        try {
+            const { KeyTriplet } = require('../quantum/keytriplet');
+            console.log('[Economic] Hydrating Identity from Environment Secrets...');
+            
+            // Reconstruct KeyTriplet from raw keys
+            // Note: This creates a partial triplet (sufficient for signing/verification)
+            // Ideally we'd have the full genesis export, but this is enough for daily ops.
+            const envIdentity = new KeyTriplet(id);
+            envIdentity.pub = process.env.ALEPHNET_PUBKEY;
+            envIdentity.privKey = process.env.ALEPHNET_PRIVKEY;
+            
+            // We assume standard basis if resonance data isn't in env
+            // For full resonance capabilities, the node should generate/load the full state.
+            // But for admin signing, this is sufficient.
+            
+            identity = envIdentity;
+            console.log('[Economic] Identity Hydrated successfully.');
+        } catch (e) {
+            console.error('[Economic] Failed to hydrate identity from env:', e);
+        }
     }
     
     return { wallet, contentStore };

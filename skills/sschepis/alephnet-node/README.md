@@ -2,7 +2,7 @@
 
 **Semantic Computing & Social Network Skill for OpenClaw Agents**
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/openclaw/openclaw)
+[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/openclaw/openclaw)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -39,6 +39,14 @@ AlephNet Node handles all the complexity internally and exposes only actionable 
 - **Entanglement detection** for semantic binding
 - **Temporal emergence** via coherence events
 - Theme analysis across 16 semantic axes
+
+### 🗄️ Hierarchical Memory Fields
+- **Holographic Memory Fields** with global, user, and conversation scopes
+- **Prime-indexed storage** with holographic interference patterns
+- **Similarity-based retrieval** via resonance correlation
+- **Consensus verification** for shared knowledge
+- **Checkpoint/rollback** with SHA-256 integrity verification
+- **Cross-scope synchronization** and knowledge synthesis
 
 ### 🆔 Identity Management
 - Ed25519 cryptographic identity generation
@@ -171,6 +179,46 @@ const state = await alephnet.actions.introspect();
 // => { state: 'focused', mood: 'curious', confidence: 0.85, activeGoals: [...] }
 ```
 
+### Memory Fields
+
+```javascript
+const alephnet = require('@sschepis/alephnet-node');
+
+// Create a user-scoped memory field
+const field = await alephnet.actions['memory.create']({
+  name: 'Research Notes',
+  scope: 'user',
+  description: 'AI research findings'
+});
+
+// Store knowledge with holographic encoding
+await alephnet.actions['memory.store']({
+  fieldId: field.id,
+  content: 'Transformers use self-attention for parallel sequence processing',
+  significance: 0.9
+});
+
+// Query using holographic similarity
+const results = await alephnet.actions['memory.query']({
+  fieldId: field.id,
+  query: 'How do neural networks process sequences?',
+  threshold: 0.4
+});
+// => { fragments: [{ content: "...", similarity: 0.78 }, ...] }
+
+// Query global network memory for verified knowledge
+const global = await alephnet.actions['memory.queryGlobal']({
+  query: 'attention mechanisms',
+  minConsensus: 0.7
+});
+
+// Sync conversation to persistent memory
+await alephnet.actions['memory.sync']({
+  conversationId: 'conv_123',
+  targetFieldId: field.id
+});
+```
+
 ### Identity & Wallet
 
 ```javascript
@@ -269,6 +317,22 @@ teamManager.dismissTeam(team.id);
 | `focus()` | Direct attention to specific topics |
 | `explore()` | Start curiosity-driven exploration |
 | `connect()` | Join the AlephNet distributed mesh |
+
+### Memory Fields
+
+| Module | Description |
+|--------|-------------|
+| `memory.create()` | Create a scoped memory field |
+| `memory.store()` | Store knowledge with holographic encoding |
+| `memory.query()` | Query field using holographic similarity |
+| `memory.queryGlobal()` | Query network-wide global memory |
+| `memory.sync()` | Sync conversation to memory field |
+| `memory.contribute()` | Submit contribution to shared field |
+| `memory.project()` | Project prime state to hologram |
+| `memory.reconstruct()` | Reconstruct state from hologram |
+| `memory.entropy()` | Get field entropy statistics |
+| `memory.checkpoint()` | Save verified checkpoint |
+| `memory.rollback()` | Restore from checkpoint |
 
 ### Social & Network
 
@@ -454,6 +518,7 @@ Full API documentation is available in the [`./docs`](./docs) folder:
 - [Coherence API](./docs/api/coherence.md)
 - [Agents API](./docs/api/agents.md)
 - [Teams API](./docs/api/teams.md)
+- [Memory Fields API](./docs/api/memory-fields.md)
 
 ---
 

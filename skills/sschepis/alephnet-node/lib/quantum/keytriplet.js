@@ -25,13 +25,18 @@ class KeyTriplet {
 
     /**
      * Generate a full KeyTriplet from a seed (or random)
+     * @param {string} [seed] - Entropy seed
+     * @param {string} [networkContext] - Genesis Hash or Network ID to entangle with
      */
-    generate(seed = null) {
+    generate(seed = null, networkContext = 'UNIVERSAL_DEFAULT') {
         const generationSeed = seed || crypto.randomBytes(32).toString('hex');
-        const entropySource = `${generationSeed}:${this.nodeId}`;
+        
+        // ENTANGLEMENT: Mix network context into entropy
+        // This ensures identity |Ψ⟩ is unique to this specific Genesis/Network
+        const entropySource = `${networkContext}:${generationSeed}:${this.nodeId}`;
 
         // 1. Generate K_priv (Private Resonance Key)
-        // H(Seed || ID) -> |Ψ⟩
+        // H(Network || Seed || ID) -> |Ψ⟩
         this.priv = hashToState(entropySource, this.primes.length);
 
         // 2. Generate K_res (Public Resonance Key)

@@ -1,13 +1,18 @@
 {
   "owner": "sschepis",
   "slug": "alephnet-node",
-  "displayName": "Alephnet Node",
+  "displayName": "AlephNet Node",
   "latest": {
-    "version": "1.3.1",
-    "publishedAt": 1770282465165,
-    "commit": "https://github.com/clawdbot/skills/commit/ea448224643e207f82c298a847ba63c6dde94359"
+    "version": "1.3.3",
+    "publishedAt": 1770291724691,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.3.1",
+      "publishedAt": 1770282465165,
+      "commit": "https://github.com/clawdbot/skills/commit/ea448224643e207f82c298a847ba63c6dde94359"
+    },
     {
       "version": "1.2.6",
       "publishedAt": 1770244665866,

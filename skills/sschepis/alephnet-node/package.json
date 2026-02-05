@@ -1,6 +1,6 @@
 {
   "name": "@sschepis/alephnet-node",
-  "version": "1.3.1",
+  "version": "1.3.3",
   "description": "AlephNet Node - Semantic computing, social network, and Coherence verification for AI agents",
   "main": "index.js",
   "scripts": {

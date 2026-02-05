@@ -13,6 +13,7 @@ const { URL } = require('url');
 const { createLogger, colors: c } = require('./constants');
 const { initializeObserver, truncateToolContent } = require('./shared');
 const { authMiddleware } = require('../auth-middleware');
+const { networkState } = require('../quantum/network-state');
 
 // Learning system
 const { createLearningSystem } = require('../learning');
@@ -158,6 +159,15 @@ class SentientServer {
         console.log(`Initializing Sentient Observer...`);
         console.log(`Connecting to LMStudio at ${this.options.url}...`);
         
+        // Initialize Network State
+        const dataPath = this.options.dataPath || './data';
+        const genesisPath = path.join(dataPath, 'content', 'genesis.json');
+        if (networkState.load(genesisPath)) {
+            console.log('✓ Network Trust Root anchored');
+        } else {
+            console.warn('⚠️  Network Genesis not loaded. Running in bootstrap mode.');
+        }
+
         const result = await initializeObserver(this.options, {
             onMoment: (m) => this.broadcastMoment(m),
             onOutput: () => {},

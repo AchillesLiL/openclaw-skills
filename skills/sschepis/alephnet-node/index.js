@@ -116,6 +116,10 @@ module.exports = {
 
 if (require.main === module) {
     const { SentientServer } = require('./lib/app/server.js');
-    const server = new SentientServer({ port: 31337 });
+    const path = require('path');
+    const server = new SentientServer({ 
+        port: 31337,
+        dataPath: path.join(__dirname, 'data')
+    });
     server.start().catch(console.error);
 }

@@ -73,6 +73,27 @@ class PrimeHilbertState {
     }
 
     /**
+     * Calculate Inner Product ⟨Ψ|Φ⟩
+     * @param {PrimeHilbertState} other 
+     * @returns {Complex}
+     */
+    inner(other) {
+        let result = Complex.zero();
+        
+        // Iterate over intersection of prime bases
+        for (const p of this.primes) {
+            if (other.amplitudes.has(p)) {
+                const alpha = this.getAmplitude(p);
+                const beta = other.getAmplitude(p);
+                
+                // ⟨Ψ|Φ⟩ = Σ α_p* β_p
+                result = result.add(alpha.conjugate().mul(beta));
+            }
+        }
+        return result;
+    }
+
+    /**
      * Normalize the state so Σ|α_p|² = 1
      */
     normalize() {
