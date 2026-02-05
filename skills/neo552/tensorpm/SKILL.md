@@ -153,22 +153,6 @@ curl -X POST http://localhost:37850/projects/{projectId}/a2a \
 }
 ```
 
-### Message Parts
-
-Messages support multiple part types:
-
-| Kind | Description |
-|------|-------------|
-| `text` | Plain text content: `{"kind": "text", "text": "Hello"}` |
-| `file` | File attachment: `{"kind": "file", "file": {"name": "doc.txt", "mimeType": "text/plain", "bytes": "base64..."}}` |
-| `data` | Structured data: `{"kind": "data", "data": {"key": "value"}}` |
-
-**File part fields:**
-- `name` — Filename (optional)
-- `mimeType` — MIME type (optional, defaults to `application/octet-stream`)
-- `bytes` — Base64-encoded file content
-- `uri` — URL reference to file (alternative to `bytes`)
-
 ### Task Management
 
 Tasks track the lifecycle of message requests. States: `submitted`, `working`, `input-required`, `completed`, `canceled`, `failed`.
