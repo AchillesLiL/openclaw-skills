@@ -1,0 +1,11 @@
+{
+  "owner": "0xjordansg-yolo",
+  "slug": "openclaw-aisa-search-website-academic-tavily-serp-exa",
+  "displayName": "Multi-source retrieval with confidence scoring - web, academic, and Tavily in one unified API",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770385462220,
+    "commit": null
+  },
+  "history": []
+}
