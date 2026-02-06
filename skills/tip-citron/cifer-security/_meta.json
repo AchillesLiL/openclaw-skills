@@ -1,0 +1,11 @@
+{
+  "owner": "tip-citron",
+  "slug": "cifer-security",
+  "displayName": "cifer",
+  "latest": {
+    "version": "0.3.1",
+    "publishedAt": 1770394234510,
+    "commit": null
+  },
+  "history": []
+}
