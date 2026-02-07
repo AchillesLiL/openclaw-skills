@@ -3,9 +3,15 @@
   "slug": "flyio-cli",
   "displayName": "Fly.io CLI",
   "latest": {
-    "version": "1.0.1",
-    "publishedAt": 1769314716010,
-    "commit": "https://github.com/clawdbot/skills/commit/a1ae4b93bed4f7e7b4493e1d118f472ac0e2944e"
+    "version": "1.0.2",
+    "publishedAt": 1770497675190,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.1",
+      "publishedAt": 1769314716010,
+      "commit": "https://github.com/clawdbot/skills/commit/a1ae4b93bed4f7e7b4493e1d118f472ac0e2944e"
+    }
+  ]
 }

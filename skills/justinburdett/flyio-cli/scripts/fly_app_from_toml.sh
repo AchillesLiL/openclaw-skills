@@ -12,7 +12,9 @@ if [ ! -f "$path" ]; then
 fi
 
 # naive parse: app = "name" OR app = 'name'
-app=$(ruby -e 't=File.read(ARGV[0]); m=t.match(/^app\s*=\s*["\x27]([^"\x27]+)["\x27]/); puts(m ? m[1] : "")' "$path")
+# Avoid using an interpreter (ruby/python) here; keep it as a simple shell parser.
+# This assumes a single-line definition like: app = "my-app"
+app=$(awk -F= '/^[[:space:]]*app[[:space:]]*=/{v=$2; gsub(/^[[:space:]]*/,"",v); gsub(/[[:space:]]*$/,"",v); gsub(/^"|"$/,"",v); gsub(/^\x27|\x27$/,"",v); print v; exit}' "$path")
 
 if [ -z "$app" ]; then
   echo "Could not find app = \"...\" in $path" >&2

@@ -5,7 +5,7 @@
 Workflow outline:
 - checkout
 - setup flyctl
-- `fly deploy --remote-only`
+- `flyctl deploy --remote-only`
 
 Secrets:
 - `FLY_API_TOKEN`
