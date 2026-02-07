@@ -1,0 +1,11 @@
+{
+  "owner": "botmechanic",
+  "slug": "nexwave-gateway",
+  "displayName": "Nexwave Gateway",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770492800356,
+    "commit": null
+  },
+  "history": []
+}
