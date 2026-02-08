@@ -1,13 +1,18 @@
 {
   "owner": "koolninad",
   "slug": "uid-life",
-  "displayName": "Uid Life",
+  "displayName": "UID.LIFE Compute Node",
   "latest": {
-    "version": "1.3.0",
-    "publishedAt": 1770370478874,
-    "commit": "https://github.com/openclaw/skills/commit/31f3bb3e31358f903ab036211ead0916ca49defe"
+    "version": "1.4.0",
+    "publishedAt": 1770489129164,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.3.0",
+      "publishedAt": 1770370478874,
+      "commit": "https://github.com/openclaw/skills/commit/31f3bb3e31358f903ab036211ead0916ca49defe"
+    },
     {
       "version": "1.2.0",
       "publishedAt": 1770359588565,
