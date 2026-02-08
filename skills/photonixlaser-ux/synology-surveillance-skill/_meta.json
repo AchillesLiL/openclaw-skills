@@ -1,0 +1,11 @@
+{
+  "owner": "photonixlaser-ux",
+  "slug": "synology-surveillance-skill",
+  "displayName": "Synology Surveillance",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1770514246827,
+    "commit": null
+  },
+  "history": []
+}
