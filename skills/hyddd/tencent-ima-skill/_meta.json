@@ -1,0 +1,11 @@
+{
+  "owner": "hyddd",
+  "slug": "tencent-ima-skill",
+  "displayName": "Tencent IMA Skill",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770535452777,
+    "commit": null
+  },
+  "history": []
+}
