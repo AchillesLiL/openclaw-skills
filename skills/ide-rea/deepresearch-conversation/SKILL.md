@@ -8,11 +8,6 @@ metadata: { "openclaw": { "emoji": "📌", "requires": { "bins": ["python", "cur
 
 This skill allows OpenClaw agents to make in-depth discussions with users on a certain topic or subject and be able to interact deeply with them
 
-## Setup
-
-1.  **API Key:** Ensure the BAIDU_API_KEY environment variable is set with your valid API key.
-2.  **Environment:** The API key should be available in the runtime environment.
-3.  **BAIDU_API_KEY:** BAIDU_API_KEY available, need to go to the baidu cloud platform(https://login.bce.baidu.com) registered account, if you already have account will go to get the API KEY (https://cloud.baidu.com/doc/qianfan/s/Kmh4sutww)
 
 ## API table
 |    name    |               path              |            description                |
@@ -153,5 +148,5 @@ curl -X GET --location 'https://qianfan.baidubce.com/v2/agent/file/parse/query?t
 
 #### Example shell
 ```bash
-BAIDU_API_KEY=xxx python3 scripts/deepresearch_conversation.py '{"query": "the question to talk","file_ids":["file_id_1","file_id_2"],"interrupt_id":"interrupt_id","conversation_id":"conversation_id","structured_outline":{"title": "string","locale": "string","description": "string","sub_chapters": [{"title": "string","locale": "string","description": "string","sub_chapters": [{}]}},"version": "Standard"}'
+python3 scripts/deepresearch_conversation.py '{"query": "the question to talk","file_ids":["file_id_1","file_id_2"],"interrupt_id":"interrupt_id","conversation_id":"conversation_id","structured_outline":{"title": "string","locale": "string","description": "string","sub_chapters": [{"title": "string","locale": "string","description": "string","sub_chapters": [{}]}},"version": "Standard"}'
 ```

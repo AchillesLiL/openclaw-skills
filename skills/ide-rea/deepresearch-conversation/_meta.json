@@ -1,11 +1,17 @@
 {
   "owner": "ide-rea",
   "slug": "deepresearch-conversation",
-  "displayName": "A Conversation of deepresearch",
+  "displayName": "Deepresearch Conversation",
   "latest": {
-    "version": "1.0.0",
-    "publishedAt": 1770449605465,
-    "commit": "https://github.com/openclaw/skills/commit/0de41b8f1e95136b0e96a07ee9a2aa1dfb1a17af"
+    "version": "1.0.2",
+    "publishedAt": 1770564541283,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.0",
+      "publishedAt": 1770449605465,
+      "commit": "https://github.com/openclaw/skills/commit/0de41b8f1e95136b0e96a07ee9a2aa1dfb1a17af"
+    }
+  ]
 }
