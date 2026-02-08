@@ -3,11 +3,16 @@
   "slug": "openclaw-deploy",
   "displayName": "Openclaw Deploy",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1770141921589,
-    "commit": "https://github.com/clawdbot/skills/commit/043157f10368bf40ec7cc3b17f21ca11fb4893b4"
+    "version": "1.0.3",
+    "publishedAt": 1770486725356,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1770141921589,
+      "commit": "https://github.com/clawdbot/skills/commit/043157f10368bf40ec7cc3b17f21ca11fb4893b4"
+    },
     {
       "version": "1.0.1",
       "publishedAt": 1770137704117,
