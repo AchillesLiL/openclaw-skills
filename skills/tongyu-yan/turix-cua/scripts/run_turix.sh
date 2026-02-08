@@ -114,34 +114,34 @@ update_config() {
     local use_skills="$USE_SKILLS"
     local resume_id="$RESUME_ID"
 
-    python3 << PYEOF
+    TASK_ARG="$task_arg" USE_PLAN="$use_plan" USE_SKILLS="$use_skills" RESUME_ID="$resume_id" CONFIG_FILE="$CONFIG_FILE" \
+        python3 << 'PYEOF'
 import json
 import os
-import sys
 
-config_path = '$CONFIG_FILE'
+config_path = os.environ["CONFIG_FILE"]
 
 # Read existing config
 with open(config_path, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
 # Update task from environment (safer for UTF-8)
-task_arg = '''$task_arg'''
+task_arg = os.environ.get("TASK_ARG", "")
 if task_arg:
     data['agent']['task'] = task_arg
 
 # Update resume settings
-resume_id = '''$resume_id'''
+resume_id = os.environ.get("RESUME_ID", "")
 if resume_id:
     data['agent']['resume'] = True
     data['agent']['agent_id'] = resume_id
 
 # Update feature flags
-use_plan = '''$use_plan'''
-use_skills = '''$use_skills'''
+use_plan = os.environ.get("USE_PLAN", "True")
+use_skills = os.environ.get("USE_SKILLS", "True")
 
-data['agent']['use_plan'] = (use_plan == 'True')
-data['agent']['use_skills'] = (use_skills == 'True')
+data['agent']['use_plan'] = (use_plan == "True")
+data['agent']['use_skills'] = (use_skills == "True")
 
 # Ensure skills settings exist
 if data['agent']['use_skills']:
@@ -199,7 +199,7 @@ main() {
         exit 0
     fi
 
-    update_config
+    update_config "$@"
     preflight_checks
 
     log_info "Starting TuriX..."
