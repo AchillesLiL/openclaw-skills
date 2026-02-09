@@ -3,11 +3,16 @@
   "slug": "baidu-scholar-search-skill",
   "displayName": "Baidu Scholar Search Skill",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1770561134886,
-    "commit": "https://github.com/openclaw/skills/commit/9ef4332f50a0286f3615cc3d5a38e0a905c6dcdf"
+    "version": "1.0.3",
+    "publishedAt": 1770608942489,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1770561134886,
+      "commit": "https://github.com/openclaw/skills/commit/9ef4332f50a0286f3615cc3d5a38e0a905c6dcdf"
+    },
     {
       "version": "1.0.0",
       "publishedAt": 1770488401414,

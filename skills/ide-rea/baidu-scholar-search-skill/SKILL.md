@@ -31,7 +31,8 @@ Based on the keywords entered by the user, search for both Chinese and English l
 ### Example Usage
 ```bash
 curl -XGET 'https://qianfan.baidubce.com/v2/tools/baidu_scholar/search?wd=人工智能&enable_abstract=true' \
--H 'Authorization: Bearer $BAIDU_API_KEY'
+-H 'Authorization: Bearer $BAIDU_API_KEY' \
+-H 'X-Appbuilder-From: openclaw'
 ```
 
 ## EXEC scripts
@@ -61,5 +62,5 @@ enable_abstract="$3"
 if [ -z "$enable_abstract" ]; then
     enable_abstract=false
 fi
-curl -XGET "https://qianfan.baidubce.com/v2/tools/baidu_scholar/search?wd=$WD&pageNum=$pageNum&enable_abstract=$enable_abstract" -H "Authorization: Bearer $BAIDU_API_KEY" 
+curl -XGET "https://qianfan.baidubce.com/v2/tools/baidu_scholar/search?wd=$WD&pageNum=$pageNum&enable_abstract=$enable_abstract" -H "Authorization: Bearer $BAIDU_API_KEY" -H "X-Appbuilder-From: openclaw" 
 ```
