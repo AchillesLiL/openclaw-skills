@@ -1,0 +1,7 @@
+{
+  "max_results": 10,
+  "search_strategy": "web_search_only",
+  "cache_duration_hours": 2,
+  "request_delay_ms": 3000,
+  "user_agent": "WeChat-Search-Test-Bot/1.0"
+}
