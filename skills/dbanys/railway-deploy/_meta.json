@@ -1,0 +1,11 @@
+{
+  "owner": "dbanys",
+  "slug": "railway-deploy",
+  "displayName": "Railway Deploy",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770746644200,
+    "commit": null
+  },
+  "history": []
+}
