@@ -1,0 +1,11 @@
+{
+  "owner": "bowen-dotcom",
+  "slug": "aisa-llm-router-skill",
+  "displayName": "LLM Router Gateway",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770711427189,
+    "commit": null
+  },
+  "history": []
+}
