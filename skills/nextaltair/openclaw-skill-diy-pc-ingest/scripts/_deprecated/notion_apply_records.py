@@ -481,12 +481,33 @@ def main():
         require_ids(target, CONFIG)
 
         overwrite = bool(rec.get("overwrite", False))
+        page_id = rec.get("page_id") or rec.get("id")
+        archive = bool(rec.get("archive", False) or rec.get("archived", False))
+
         title = rec.get("title") or rec.get("properties", {}).get("Name") or rec.get("properties", {}).get("名前")
         props_in = rec.get("properties") or {}
 
         if target not in cache_schema:
             cache_schema[target] = get_schema(IDS[target]["data_source_id"])
         schema = cache_schema[target]
+
+        # Escape hatch: update a specific page by id (used for manual cleanup / de-dup).
+        if page_id:
+            existing_page = req("GET", f"/pages/{page_id}")
+            patch = build_patch(schema, props_in, existing_page.get("properties") or {}, overwrite)
+            body = {}
+            if patch:
+                body["properties"] = patch
+            if archive:
+                body["archived"] = True
+            if body:
+                updated = req("PATCH", f"/pages/{page_id}", body)
+                summary["updated"] += 1
+                outputs.append({"action": "updated", "target": target, "id": updated.get("id"), "url": updated.get("url")})
+            else:
+                summary["skipped"] += 1
+                outputs.append({"action": "skipped", "target": target, "id": existing_page.get("id"), "url": existing_page.get("url")})
+            continue
 
         existing = find_existing(target, schema, props_in)
         if existing:
@@ -502,6 +523,51 @@ def main():
             created = create_page(target, schema, str(title or "(untitled)"), props_in)
             summary["created"] += 1
             outputs.append({"action": "created", "target": target, "id": created.get("id"), "url": created.get("url")})
+
+        # Optional: mirror storage items into PCConfig as an installed component record.
+        # This keeps a per-PC parts list in addition to the per-device storage table.
+        if target == "storage" and rec.get("mirror_to_pcconfig"):
+            pc = props_in.get("現在の接続先PC")
+            purchase_date = props_in.get("購入日")
+            name = props_in.get("Name")
+            if not (pc and purchase_date and name):
+                summary["skipped"] += 1
+                outputs.append({"action": "skipped", "target": "pcconfig", "reason": "mirror_missing_fields", "need": ["現在の接続先PC", "購入日", "Name"], "got": {"現在の接続先PC": bool(pc), "購入日": bool(purchase_date), "Name": bool(name)}})
+            else:
+                pc_rec = {
+                    "target": "pcconfig",
+                    "title": str(name),
+                    "properties": {
+                        "PC": pc,
+                        "Category": "ストレージ",
+                        "Name": str(name),
+                        "Purchase Date": str(purchase_date),
+                        "Purchase Vendor": props_in.get("購入店"),
+                        "Purchase Price": props_in.get("価格(円)"),
+                        "Spec": f"S/N: {props_in.get('シリアル','')}",
+                        "Installed": True,
+                        "Active": True,
+                        "Notes": "mirrored from storage",
+                    },
+                    "overwrite": False,
+                }
+                # Recurse through the same logic once (no further mirroring)
+                pc_schema = cache_schema.get("pcconfig") or get_schema(IDS["pcconfig"]["data_source_id"])
+                cache_schema["pcconfig"] = pc_schema
+                pc_existing = find_existing("pcconfig", pc_schema, pc_rec["properties"])
+                if pc_existing:
+                    pc_patch = build_patch(pc_schema, pc_rec["properties"], pc_existing.get("properties") or {}, False)
+                    if pc_patch:
+                        pc_updated = req("PATCH", f"/pages/{pc_existing['id']}", {"properties": pc_patch})
+                        summary["updated"] += 1
+                        outputs.append({"action": "updated", "target": "pcconfig", "id": pc_updated.get("id"), "url": pc_updated.get("url"), "reason": "mirrored"})
+                    else:
+                        summary["skipped"] += 1
+                        outputs.append({"action": "skipped", "target": "pcconfig", "id": pc_existing.get("id"), "url": pc_existing.get("url"), "reason": "mirrored_no_changes"})
+                else:
+                    pc_created = create_page("pcconfig", pc_schema, str(name), pc_rec["properties"])
+                    summary["created"] += 1
+                    outputs.append({"action": "created", "target": "pcconfig", "id": pc_created.get("id"), "url": pc_created.get("url"), "reason": "mirrored"})
 
     print(json.dumps({"summary": summary, "results": outputs}, ensure_ascii=False, indent=2))
 
