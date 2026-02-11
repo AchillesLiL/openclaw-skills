@@ -3,9 +3,15 @@
   "slug": "media-converter",
   "displayName": "Media Converter",
   "latest": {
-    "version": "1.0.0",
-    "publishedAt": 1769892403810,
-    "commit": "https://github.com/clawdbot/skills/commit/5ddede49b28e47ba22ee3de11a5c4b1aee69326d"
+    "version": "1.0.1",
+    "publishedAt": 1770791815621,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "1.0.0",
+      "publishedAt": 1769892403810,
+      "commit": "https://github.com/clawdbot/skills/commit/5ddede49b28e47ba22ee3de11a5c4b1aee69326d"
+    }
+  ]
 }
