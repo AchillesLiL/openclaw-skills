@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${AUTOBAHN_VERSION:-v0.3.0}"
+VERSION="${AUTOBAHN_VERSION:-v0.4.0}"
 INSTALL_DIR="${AUTOBAHN_INSTALL_DIR:-$HOME/.autobahn/bin}"
 REPO="unifiedh/autobahn-releases"
 

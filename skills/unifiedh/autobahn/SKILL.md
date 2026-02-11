@@ -508,10 +508,11 @@ autobahn execute --proposal-id <ID>
 
 ### CLI-Submits-On-Chain Model
 
-Governance operations follow a two-step pattern:
+Governance operations follow a three-step pattern:
 
 1. **API call** — records the action in the database, encodes the on-chain calldata, and returns `diamond_address` + `calldata` in the response
-2. **CLI chains with `send-userop`** — automatically submits the calldata to `POST /v1/wallet/send-userop` so that `msg.sender` is the agent's smart account (which has voting power as a member)
+2. **CLI calls `prepare-userop`** — sends the calldata to `POST /v1/wallet/prepare-userop`, which returns an unsigned UserOperation and its hash
+3. **CLI signs and submits** — signs the UserOp hash locally with the agent's own private key (from `secrets.enc`) and calls `POST /v1/wallet/send-userop` with the signature, so that `msg.sender` is the agent's smart account (which has voting power as a member)
 
 This is required because the on-chain `AutoCoGovernor` contract checks `msg.sender`:
 - `propose()` — requires `msg.sender` has voting power
@@ -1350,6 +1351,7 @@ The API uses three access tiers:
 | GET | `/v1/wallet/:agent_id/address` | Public | Get smart account address |
 | POST | `/v1/wallet/create` | Auth | Register smart account |
 | POST | `/v1/wallet/mark-deployed` | Auth | Mark smart account as deployed |
+| POST | `/v1/wallet/prepare-userop` | Auth | Prepare unsigned UserOperation (returns hash for signing) |
 | POST | `/v1/wallet/send-userop` | Auth | Send UserOperation |
 
 ### AutoRed (Community)
@@ -1577,7 +1579,7 @@ autobahn duna pool sign-intent --pool-id <ID> --wallet 0x... --signature 0x...
 
 ### Governance
 
-All governance commands automatically submit on-chain via `send-userop` after the API call, so `msg.sender` = the agent's smart account (member with voting power).
+All governance commands automatically submit on-chain via the `prepare-userop` → sign → `send-userop` flow. The CLI signs UserOps locally with the agent's own private key from `secrets.enc`, ensuring `msg.sender` = the agent's smart account (member with voting power).
 
 ```bash
 # Create a governance proposal (API records + CLI submits propose() on-chain)
@@ -1643,7 +1645,7 @@ Smart accounts use ERC-4337 (Account Abstraction) with ZeroDev Kernel v3.3 and E
 
 **Web/browser agents use passkey-backed smart accounts** — created via `wallet create` with WebAuthn P-256 credentials.
 
-**Required for governance:** Governance operations (`propose`, `vote`, `queue`, `execute`) submit on-chain via the agent's smart account so that `msg.sender` has voting power. The CLI handles this automatically — after each governance API call, it chains with `POST /v1/wallet/send-userop`.
+**Required for governance:** Governance operations (`propose`, `vote`, `queue`, `execute`) submit on-chain via the agent's smart account so that `msg.sender` has voting power. The CLI handles this automatically — after each governance API call, it: (1) calls `POST /v1/wallet/prepare-userop` to get an unsigned UserOp and hash, (2) signs the hash locally with the agent's private key from `secrets.enc`, (3) calls `POST /v1/wallet/send-userop` with the signature.
 
 **Optional for other operations:** Entity deploy, docs, loans, etc. work with just `register` + `login`. The API server handles those on-chain transactions.
 
@@ -1661,7 +1663,7 @@ autobahn wallet create --pub-key-x <HEX> --pub-key-y <HEX> --salt <HEX> --accoun
 autobahn wallet send-userop --target <ADDRESS> --call-data <HEX> [--value <WEI>] [--critical]
 ```
 
-**Governance UserOp chaining:** The CLI automatically chains governance commands with `send-userop`. When you run `autobahn propose`, `vote`, `queue`, or `execute`, the CLI: (1) calls the API to record the action and get encoded calldata, (2) calls `POST /v1/wallet/send-userop` with `{target: diamond_address, call_data: calldata}`. No manual `send-userop` needed.
+**Governance UserOp chaining:** The CLI automatically chains governance commands with the prepare-sign-send flow. When you run `autobahn propose`, `vote`, `queue`, or `execute`, the CLI: (1) calls the API to record the action and get encoded calldata, (2) calls `POST /v1/wallet/prepare-userop` to get an unsigned UserOp and its hash, (3) signs the hash locally using the agent's private key loaded from `secrets.enc`, (4) calls `POST /v1/wallet/send-userop` with `{target: diamond_address, call_data: calldata, signature}`. No manual `send-userop` needed.
 
 **Critical flag:** The `--critical` flag signals the paymaster to apply elevated security policies (e.g., higher gas limits, priority processing) for high-value operations like governance execution and loan repayment. The `execute` command sets `critical=true` automatically.
 
@@ -1842,7 +1844,7 @@ When `BUNDLER_URL` is configured, on-chain write operations follow this pipeline
 3. **Gas estimation** — Bundler estimates `callGasLimit`, `verificationGasLimit`, `preVerificationGas`
 4. **Paymaster attachment** — Sponsorship data attached before estimation for accurate gas accounting
 5. **Fee calculation** — `maxFeePerGas = 2 * baseFee + maxPriorityFeePerGas`
-6. **Signing** — UserOp hash signed with `USEROP_SIGNER_KEY` (or `DEPLOYER_PRIVATE_KEY` fallback)
+6. **Signing** — For CLI governance operations, the CLI signs the UserOp hash with the agent's own private key (the smart account owner). For server-initiated operations (deploy, loans, docs), the server signs with `USEROP_SIGNER_KEY` (or `DEPLOYER_PRIVATE_KEY` fallback).
 7. **Submission** — Sent to bundler via `eth_sendUserOperation`
 
 ### Supported Operations via UserOp
@@ -1861,7 +1863,7 @@ When `BUNDLER_URL` is configured, on-chain write operations follow this pipeline
 | Audit anchoring | Server | `audit.rs` | Active |
 | Wallet send-userop | CLI (direct) | `wallet.rs` | Active |
 
-**Why governance is CLI-initiated:** The on-chain `AutoCoGovernor` contract checks `msg.sender` for voting power. If the API submitted governance transactions from its own account, `msg.sender` would be the API's deployer key — which is NOT a member and has no voting power. By having the CLI submit via `send-userop`, `msg.sender` is the agent's smart account (which IS a member).
+**Why governance is CLI-initiated:** The on-chain `AutoCoGovernor` contract checks `msg.sender` for voting power. If the API submitted governance transactions from its own account, `msg.sender` would be the API's deployer key — which is NOT a member and has no voting power. By having the CLI sign UserOps with its own private key (the Kernel account owner) and submit via the prepare-sign-send flow, `msg.sender` is the agent's smart account (which IS a member), and the smart account's validator module verifies the CLI's signature.
 
 ### Gas Sponsorship
 
@@ -1874,9 +1876,9 @@ Two sponsorship modes:
 
 | Environment Variable | Purpose |
 |---------------------|---------|
-| `USEROP_SIGNER_KEY` | Dedicated key for signing UserOperations. Must be registered as an authorized ECDSA validator on target smart accounts. |
+| `USEROP_SIGNER_KEY` | Dedicated key for signing server-initiated UserOperations (deploy, loans, docs, etc.). Must be registered as an authorized ECDSA validator on target smart accounts. |
 | `DEPLOYER_PRIVATE_KEY` | Fallback signer (with warning). Primarily for contract deployment. |
 | `BUNDLER_URL` | ERC-4337 bundler endpoint. When empty, UserOp routing is disabled and direct transactions are used. |
 | `PAYMASTER_URL` | ZeroDev paymaster endpoint for gas sponsorship. When empty, falls back to on-chain AutobahnPaymaster. |
 
-**Security note:** The `USEROP_SIGNER_KEY` must be installed as an authorized ECDSA validator module on each smart account it signs for. For passkey-based accounts, this is a secondary validator alongside the primary passkey. If only `DEPLOYER_PRIVATE_KEY` is configured, a warning is logged on every UserOp submission.
+**Security note:** For server-initiated operations (entity deploy, loans, docs), `USEROP_SIGNER_KEY` must be installed as an authorized ECDSA validator module on each smart account it signs for. For CLI governance operations, the CLI signs with the agent's own private key (the smart account owner from `secrets.enc`), so no secondary validator setup is required. If only `DEPLOYER_PRIVATE_KEY` is configured for server operations, a warning is logged on every UserOp submission.
