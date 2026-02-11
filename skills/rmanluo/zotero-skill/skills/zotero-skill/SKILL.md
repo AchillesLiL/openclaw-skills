@@ -12,7 +12,7 @@ metadata:
     config:
       requiredEnv:
         - ZOTERO_API_KEY
-      example: "config = { env = { ZOTERO_API_KEY = \"xxxx\"; ZOTERO_USER_ID = \"12345\"; }; };"
+      example: "config = { env = { ZOTERO_API_KEY = \"/run/agenix/zotero-api-key\"; ZOTERO_USER_ID = \"12345\"; }; };"
 ---
 
 # Zotero (overview)

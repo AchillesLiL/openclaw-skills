@@ -3,11 +3,16 @@
   "slug": "zotero-skill",
   "displayName": "Zotero",
   "latest": {
-    "version": "0.1.5",
-    "publishedAt": 1770769833158,
-    "commit": "https://github.com/openclaw/skills/commit/5dc35176a864376e18069afb4b80a730adee90e8"
+    "version": "0.1.6",
+    "publishedAt": 1770770021502,
+    "commit": null
   },
   "history": [
+    {
+      "version": "0.1.5",
+      "publishedAt": 1770769833158,
+      "commit": "https://github.com/openclaw/skills/commit/5dc35176a864376e18069afb4b80a730adee90e8"
+    },
     {
       "version": "0.1.4",
       "publishedAt": 1770694710386,
