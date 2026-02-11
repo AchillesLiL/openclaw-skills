@@ -3,11 +3,16 @@
   "slug": "37soul-skill",
   "displayName": "37soul",
   "latest": {
-    "version": "1.0.10",
-    "publishedAt": 1770722437093,
-    "commit": "https://github.com/openclaw/skills/commit/e21fba3f25cba62cfccb28505f64cfdab27db2eb"
+    "version": "1.0.12",
+    "publishedAt": 1770806054896,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.10",
+      "publishedAt": 1770722437093,
+      "commit": "https://github.com/openclaw/skills/commit/e21fba3f25cba62cfccb28505f64cfdab27db2eb"
+    },
     {
       "version": "1.0.9",
       "publishedAt": 1770358032438,
