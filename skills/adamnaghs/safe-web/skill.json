@@ -1,7 +1,7 @@
 {
   "name": "safe-web",
   "description": "Secure web fetch and search with PromptGuard scanning. Protects against prompt injection attacks hidden in web content.",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "author": "Adam Naghavi",
   "license": "MIT",
   "keywords": ["security", "web", "fetch", "search", "prompt-guard", "injection-defense"],
@@ -17,6 +17,6 @@
     }
   ],
   "entry": {
-    "bin": "scripts/safe-web"
+    "bin": "scripts/safe-web.py"
   }
 }

@@ -12,7 +12,7 @@ Protects against prompt injection attacks hidden in web content before returning
 
 ## Installation
 
-Requires PromptGuard and Python dependencies:
+Requires [PromptGuard](https://clawhub.ai/seojoonkim/prompt-guard) and Python dependencies:
 
 ```bash
 # Install PromptGuard first
@@ -78,7 +78,7 @@ safe-web search "machine learning" --json
 Create a system-wide symlink so `safe-web` works from any directory:
 
 ```bash
-sudo ln -s /home/linuxbrew/.openclaw/workspace/skills/safe-web/scripts/safe-web /usr/local/bin/safe-web
+sudo ln -s /home/linuxbrew/.openclaw/workspace/skills/safe-web/scripts/safe-web.py /usr/local/bin/safe-web
 ```
 
 After creating the symlink, you can use `safe-web` directly without specifying the full path.
@@ -181,7 +181,7 @@ Use standard `web_fetch`/`web_search` tools only for:
 ## Dependencies
 
 - Python 3.8+
-- PromptGuard 3.1.0+
+- [PromptGuard 3.1.0+](https://clawhub.ai/seojoonkim/prompt-guard) (installed in workspace)
 - requests
 - beautifulsoup4
 - Brave Search API key (for search command)
