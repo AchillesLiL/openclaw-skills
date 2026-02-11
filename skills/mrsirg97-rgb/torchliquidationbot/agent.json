@@ -1,0 +1,73 @@
+{
+  "name": "Torch Liquidation Bot",
+  "description": "Read-only lending market scanner for Torch Market on Solana. No wallet required. Scans migrated tokens and displays lending parameters -- interest rates, LTV thresholds, treasury balances, and active loan counts. All wallet-dependent code was removed in v2.0.0.",
+  "version": "2.0.8",
+  "type": "tool",
+  "website": "https://torch.market",
+  "socials": {
+    "github": "https://github.com/mrsirg97-rgb/torch-liquidation-bot-ro"
+  },
+  "distribution": {
+    "npm": "torch-liquidation-bot",
+    "clawhub": "https://clawhub.ai/mrsirg97-rgb/torchliquidationbot",
+    "github": "https://github.com/mrsirg97-rgb/torch-liquidation-bot-ro"
+  },
+  "requires": {
+    "env": [
+      {
+        "name": "RPC_URL",
+        "description": "Solana RPC endpoint (HTTPS). Used for read-only RPC calls only. Never logged, transmitted externally, or stored.",
+        "sensitive": false,
+        "required": true
+      }
+    ],
+    "install": [
+      {
+        "id": "npm-torch-liquidation-bot",
+        "kind": "npm",
+        "package": "torch-liquidation-bot@2.0.8",
+        "flags": ["--ignore-scripts"],
+        "bins": ["torch-liquidation-bot"],
+        "label": "Install torch-liquidation-bot (npm, --ignore-scripts)"
+      }
+    ]
+  },
+  "capabilities": [
+    "lending-market-scanner",
+    "read-only"
+  ],
+  "chain": "solana",
+  "network": "mainnet",
+  "program_id": "8hbUkonssSEEtkqzwM7ZcZrD9evacM92TcWSooVF4BeT",
+  "actions": [
+    {
+      "name": "SCAN_LENDING_MARKETS",
+      "description": "Discover migrated tokens and display lending parameters (rates, LTV, treasury balance, active loans)"
+    },
+    {
+      "name": "GET_TOKEN_LENDING_INFO",
+      "description": "Get lending configuration and state for a specific migrated token"
+    }
+  ],
+  "safety": {
+    "read_only": true,
+    "no_wallet": true,
+    "no_private_key": true,
+    "no_signing": true,
+    "no_state_changes": true,
+    "no_transaction_building": true,
+    "outbound_connections": "solana_rpc_only",
+    "disable_model_invocation": true,
+    "pinned_dependencies": true,
+    "ignore_scripts_install": true,
+    "open_source": true
+  },
+  "tags": [
+    "solana",
+    "defi",
+    "lending",
+    "read-only",
+    "scanner",
+    "torch-market"
+  ]
+}
