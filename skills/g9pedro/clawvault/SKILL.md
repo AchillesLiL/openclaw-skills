@@ -1,9 +1,11 @@
 ---
 name: clawvault
-version: 1.8.2
-description: Agent memory system with checkpoint/recover, structured storage, semantic search. Use when: storing/searching memories, preventing context death. Don't use when: general file I/O.
+version: 1.11.2
+description: Agent memory system with checkpoint/recover, structured storage, observational memory, and session transcript repair. Integrates with OpenClaw's qmd memory backend for BM25+vector+reranker search. Use when: storing/searching memories, preventing context death, repairing broken sessions. Don't use when: general file I/O.
 author: Versatly
 repository: https://github.com/Versatly/clawvault
+homepage: https://clawvault.dev
+metadata: {"openclaw":{"emoji":"🐘","requires":{"bins":["clawvault"]},"install":[{"id":"node","kind":"node","package":"clawvault","bins":["clawvault"],"label":"Install ClawVault CLI (npm)"}]}}
 ---
 
 # ClawVault 🐘
@@ -11,6 +13,23 @@ repository: https://github.com/Versatly/clawvault
 An elephant never forgets. Structured memory for OpenClaw agents.
 
 > **Built for [OpenClaw](https://openclaw.ai)** — install via `clawhub install clawvault`
+
+## Security & Transparency
+
+**What this skill does:**
+- Reads/writes markdown files in your vault directory (`CLAWVAULT_PATH` or auto-discovered)
+- `repair-session` reads and modifies OpenClaw session transcripts (`~/.openclaw/agents/`) — creates backups before writing
+- Installs an OpenClaw **hook** (`hooks/clawvault/handler.js`) that runs on `gateway:startup` and `command:new` events to auto-checkpoint and detect context death. The hook is **opt-in** — enable via `openclaw hooks enable clawvault`
+- `observe --compress` makes LLM API calls (Gemini Flash by default) to compress session transcripts into observations
+
+**Environment variables used:**
+- `CLAWVAULT_PATH` — vault location (optional, auto-discovered if not set)
+- `OPENCLAW_HOME` / `OPENCLAW_STATE_DIR` — used by `repair-session` to find session transcripts
+- `GEMINI_API_KEY` — used by `observe` for LLM compression (optional, only if using observe features)
+
+**No cloud sync — all data stays local. No network calls except LLM API for observe compression.**
+
+**This is a full CLI tool, not instruction-only.** It writes files, registers hooks, and runs code.
 
 ## Install
 
@@ -226,6 +245,32 @@ qmd update && qmd embed
 ## Environment Variables
 
 - `CLAWVAULT_PATH` — Default vault path (skips auto-discovery)
+- `OPENCLAW_HOME` — OpenClaw home directory (used by repair-session)
+- `OPENCLAW_STATE_DIR` — OpenClaw state directory (used by repair-session)
+- `GEMINI_API_KEY` — Used by `observe` for LLM-powered compression (optional)
+
+## Architecture: ClawVault + qmd
+
+ClawVault and qmd serve complementary roles:
+
+- **ClawVault** handles structured memory: storing, categorizing, routing observations, session continuity (wake/sleep/checkpoint), and entity linking. It writes markdown files organized by category.
+- **qmd** handles search: BM25 keyword search, vector embeddings for semantic search, and reranker for accuracy. It indexes the markdown files ClawVault produces.
+
+Together: ClawVault writes → qmd indexes → you search with `qmd query` (BM25 + vectors + neural reranker for best accuracy).
+
+### OpenClaw Config Recommendation
+
+```yaml
+memory:
+  backend: "qmd"
+  vault: "${CLAWVAULT_PATH}"
+```
+
+The default `qmd query` pipeline uses BM25 keyword matching, vector embeddings, and a neural reranker for the most accurate results.
+
+### Low-Memory Environments
+
+The neural reranker requires ~8GB+ RAM. On constrained machines (e.g., small VPS, WSL2 with limited memory), `qmd query` may OOM. You can set `qmd.command` in your OpenClaw config to a wrapper script that routes to `qmd vsearch` (vectors only, no reranker) instead. This is a host-specific workaround, not the recommended default.
 
 ## Links
 
