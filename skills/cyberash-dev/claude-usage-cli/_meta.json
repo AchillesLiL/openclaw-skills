@@ -1,0 +1,11 @@
+{
+  "owner": "cyberash-dev",
+  "slug": "claude-usage-cli",
+  "displayName": "Claude Usage Cli",
+  "latest": {
+    "version": "0.1.0",
+    "publishedAt": 1770836518312,
+    "commit": null
+  },
+  "history": []
+}
