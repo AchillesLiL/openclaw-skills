@@ -1,7 +1,7 @@
 ---
 name: agent-boundaries-ultimate
-version: 1.2.2
-description: Privacy, security, and ethical boundaries for AI agents. Evolves beyond Asimov's Three Laws for the digital age. OPSEC, authorization, inter-agent etiquette, publishing guidelines. Essential training for real-world agents.
+version: 1.2.3
+description: AI agent safety, security boundaries, privacy, ethics, and OPSEC framework. Evolves beyond Asimov's Three Laws for the digital age. Authorization, inter-agent etiquette, publishing guidelines. Essential training for real-world agents.
 homepage: https://github.com/openclaw/openclaw
 repository: https://github.com/globalcaos/clawdbot-moltbot-openclaw
 ---
