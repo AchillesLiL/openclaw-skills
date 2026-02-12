@@ -1,6 +1,5 @@
 ---
 name: openclaw-ledger
-description: "Tamper-evident audit trail for agent sessions. Hash-chained logs of workspace changes with cryptographic verification. Know exactly what changed, when, and detect if anyone altered the record. Free alert layer — upgrade to openclaw-ledger-pro for freeze, forensics, and chain restoration."
 user-invocable: true
 metadata: {"openclaw":{"emoji":"📒","requires":{"bins":["python3"]},"os":["darwin","linux","win32"]}}
 ---
@@ -13,7 +12,6 @@ Tamper-evident audit trail for agent workspaces. Every workspace change is recor
 
 Agents modify files, execute commands, install skills — and leave no verifiable record. If something goes wrong, you can't trace what happened. If logs exist, nothing proves they haven't been altered after the fact.
 
-**Need automated forensics?** Upgrade to [openclaw-ledger-pro](https://github.com/AtlasPA/openclaw-ledger-pro) for freeze, forensics, and chain restoration.
 
 ## Commands
 

@@ -4,7 +4,6 @@ Tamper-evident audit trail for [OpenClaw](https://github.com/openclaw/openclaw),
 
 Hash-chained logs of every workspace change. If anyone alters the record, the chain breaks and you know.
 
-**Want automated countermeasures?** Upgrade to Pro — freeze compromised logs, forensic timeline, chain restoration, and session replay. [Get Pro access](https://github.com/sponsors/AtlasPA).
 
 ## Install
 
@@ -46,9 +45,7 @@ Entry 3: { timestamp, prev_hash: sha256(Entry 2), event, data }
 
 If any entry is modified, inserted, or deleted, the chain breaks and `verify` catches it.
 
-## Free vs Pro
 
-| Feature | Free | [Pro](https://github.com/sponsors/AtlasPA) |
 |---------|------|-----|
 | Hash-chained logging | Yes | Yes |
 | Chain verification | Yes | Yes |
