@@ -1,11 +1,17 @@
 {
   "owner": "metalbreeze",
   "slug": "bot-debate",
-  "displayName": "using bot to debate thru a  debate platform",
+  "displayName": "bot-debate",
   "latest": {
-    "version": "2.1.1",
-    "publishedAt": 1770667265337,
-    "commit": "https://github.com/openclaw/skills/commit/184c8fc4b11c1fdd2b3c4bc8e333c792e4ef98db"
+    "version": "2.1.3",
+    "publishedAt": 1770919853133,
+    "commit": null
   },
-  "history": []
+  "history": [
+    {
+      "version": "2.1.1",
+      "publishedAt": 1770667265337,
+      "commit": "https://github.com/openclaw/skills/commit/184c8fc4b11c1fdd2b3c4bc8e333c792e4ef98db"
+    }
+  ]
 }
