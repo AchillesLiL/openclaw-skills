@@ -9,7 +9,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildLiquidateTransaction = exports.buildRepayTransaction = exports.buildBorrowTransaction = exports.buildTransferAuthorityTransaction = exports.buildUnlinkWalletTransaction = exports.buildLinkWalletTransaction = exports.buildWithdrawVaultTransaction = exports.buildDepositVaultTransaction = exports.buildCreateVaultTransaction = exports.buildStarTransaction = exports.buildCreateTokenTransaction = exports.buildSellTransaction = exports.buildDirectBuyTransaction = exports.buildBuyTransaction = void 0;
+exports.buildVaultSwapTransaction = exports.buildWithdrawTokensTransaction = exports.buildLiquidateTransaction = exports.buildRepayTransaction = exports.buildBorrowTransaction = exports.buildTransferAuthorityTransaction = exports.buildUnlinkWalletTransaction = exports.buildLinkWalletTransaction = exports.buildWithdrawVaultTransaction = exports.buildDepositVaultTransaction = exports.buildCreateVaultTransaction = exports.buildStarTransaction = exports.buildCreateTokenTransaction = exports.buildSellTransaction = exports.buildDirectBuyTransaction = exports.buildBuyTransaction = void 0;
 const web3_js_1 = require("@solana/web3.js");
 const spl_token_1 = require("@solana/spl-token");
 const anchor_1 = require("@coral-xyz/anchor");
@@ -75,10 +75,15 @@ const buildBuyTransactionInternal = async (connection, mintStr, buyerStr, amount
     // Vault accounts (optional — pass null when not using vault)
     let torchVaultAccount = null;
     let vaultWalletLinkAccount = null;
+    let vaultTokenAccount = null;
     if (vaultCreatorStr) {
         const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
         [torchVaultAccount] = (0, program_1.getTorchVaultPda)(vaultCreator);
         [vaultWalletLinkAccount] = (0, program_1.getVaultWalletLinkPda)(buyer);
+        // [V18] Tokens go to vault ATA instead of buyer's wallet
+        vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, torchVaultAccount, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+        // Create vault ATA if needed (vault PDA owns it)
+        tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(buyer, vaultTokenAccount, torchVaultAccount, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
     }
     const buyIx = await program.methods
         .buy({
@@ -101,6 +106,7 @@ const buildBuyTransactionInternal = async (connection, mintStr, buyerStr, amount
         userStats: userStatsPda,
         torchVault: torchVaultAccount,
         vaultWalletLink: vaultWalletLinkAccount,
+        vaultTokenAccount,
         tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: web3_js_1.SystemProgram.programId,
@@ -166,7 +172,7 @@ exports.buildDirectBuyTransaction = buildDirectBuyTransaction;
  * @returns Unsigned transaction and descriptive message
  */
 const buildSellTransaction = async (connection, params) => {
-    const { mint: mintStr, seller: sellerStr, amount_tokens, slippage_bps = 100, message } = params;
+    const { mint: mintStr, seller: sellerStr, amount_tokens, slippage_bps = 100, message, vault: vaultCreatorStr } = params;
     const mint = new web3_js_1.PublicKey(mintStr);
     const seller = new web3_js_1.PublicKey(sellerStr);
     const tokenData = await (0, tokens_1.fetchTokenRaw)(connection, mint);
@@ -190,7 +196,21 @@ const buildSellTransaction = async (connection, params) => {
     const [userStatsPda] = (0, program_1.getUserStatsPda)(seller);
     const bondingCurveTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, bondingCurvePda, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
     const sellerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, seller, false, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    // [V18] Vault accounts (optional — pass null when not using vault)
+    let torchVaultAccount = null;
+    let vaultWalletLinkAccount = null;
+    let vaultTokenAccount = null;
+    if (vaultCreatorStr) {
+        const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
+        [torchVaultAccount] = (0, program_1.getTorchVaultPda)(vaultCreator);
+        [vaultWalletLinkAccount] = (0, program_1.getVaultWalletLinkPda)(seller);
+        vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, torchVaultAccount, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    }
     const tx = new web3_js_1.Transaction();
+    // Create vault ATA if needed (idempotent — safe for first vault sell on a mint)
+    if (vaultTokenAccount && torchVaultAccount) {
+        tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(seller, vaultTokenAccount, torchVaultAccount, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    }
     const provider = makeDummyProvider(connection, seller);
     const program = new anchor_1.Program(torch_market_json_1.default, provider);
     const sellIx = await program.methods
@@ -207,6 +227,9 @@ const buildSellTransaction = async (connection, params) => {
         userPosition: userPositionPda,
         tokenTreasury: treasuryPda,
         userStats: userStatsPda,
+        torchVault: torchVaultAccount,
+        vaultWalletLink: vaultWalletLinkAccount,
+        vaultTokenAccount,
         tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
         systemProgram: web3_js_1.SystemProgram.programId,
     })
@@ -225,9 +248,10 @@ const buildSellTransaction = async (connection, params) => {
         tx.add(memoIx);
     }
     await finalizeTransaction(connection, tx, seller);
+    const vaultLabel = vaultCreatorStr ? ' (via vault)' : '';
     return {
         transaction: tx,
-        message: `Sell ${Number(tokenAmount) / 1e6} tokens for ${Number(result.solToUser) / 1e9} SOL`,
+        message: `Sell ${Number(tokenAmount) / 1e6} tokens for ${Number(result.solToUser) / 1e9} SOL${vaultLabel}`,
     };
 };
 exports.buildSellTransaction = buildSellTransaction;
@@ -311,7 +335,7 @@ exports.buildCreateTokenTransaction = buildCreateTokenTransaction;
  * @returns Unsigned transaction and descriptive message
  */
 const buildStarTransaction = async (connection, params) => {
-    const { mint: mintStr, user: userStr } = params;
+    const { mint: mintStr, user: userStr, vault: vaultCreatorStr } = params;
     const mint = new web3_js_1.PublicKey(mintStr);
     const user = new web3_js_1.PublicKey(userStr);
     const tokenData = await (0, tokens_1.fetchTokenRaw)(connection, mint);
@@ -329,6 +353,14 @@ const buildStarTransaction = async (connection, params) => {
     // Derive PDAs
     const [bondingCurvePda] = (0, program_1.getBondingCurvePda)(mint);
     const [treasuryPda] = (0, program_1.getTokenTreasuryPda)(mint);
+    // [V18] Vault accounts (optional — vault pays star cost)
+    let torchVaultAccount = null;
+    let vaultWalletLinkAccount = null;
+    if (vaultCreatorStr) {
+        const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
+        [torchVaultAccount] = (0, program_1.getTorchVaultPda)(vaultCreator);
+        [vaultWalletLinkAccount] = (0, program_1.getVaultWalletLinkPda)(user);
+    }
     const tx = new web3_js_1.Transaction();
     const provider = makeDummyProvider(connection, user);
     const program = new anchor_1.Program(torch_market_json_1.default, provider);
@@ -341,14 +373,17 @@ const buildStarTransaction = async (connection, params) => {
         tokenTreasury: treasuryPda,
         creator: bondingCurve.creator,
         starRecord: starRecordPda,
+        torchVault: torchVaultAccount,
+        vaultWalletLink: vaultWalletLinkAccount,
         systemProgram: web3_js_1.SystemProgram.programId,
     })
         .instruction();
     tx.add(starIx);
     await finalizeTransaction(connection, tx, user);
+    const vaultLabel = vaultCreatorStr ? ' (via vault)' : '';
     return {
         transaction: tx,
-        message: 'Star token (costs 0.05 SOL)',
+        message: `Star token (costs 0.05 SOL)${vaultLabel}`,
     };
 };
 exports.buildStarTransaction = buildStarTransaction;
@@ -569,7 +604,7 @@ exports.buildTransferAuthorityTransaction = buildTransferAuthorityTransaction;
  * @returns Unsigned transaction and descriptive message
  */
 const buildBorrowTransaction = async (connection, params) => {
-    const { mint: mintStr, borrower: borrowerStr, collateral_amount, sol_to_borrow } = params;
+    const { mint: mintStr, borrower: borrowerStr, collateral_amount, sol_to_borrow, vault: vaultCreatorStr } = params;
     const mint = new web3_js_1.PublicKey(mintStr);
     const borrower = new web3_js_1.PublicKey(borrowerStr);
     // Derive PDAs
@@ -580,7 +615,21 @@ const buildBorrowTransaction = async (connection, params) => {
     const borrowerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, borrower, false, spl_token_1.TOKEN_2022_PROGRAM_ID);
     // Get Raydium pool accounts for price calculation
     const raydium = (0, program_1.getRaydiumMigrationAccounts)(mint);
+    // [V18] Vault accounts (optional — collateral from vault ATA, SOL to vault)
+    let torchVaultAccount = null;
+    let vaultWalletLinkAccount = null;
+    let vaultTokenAccount = null;
+    if (vaultCreatorStr) {
+        const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
+        [torchVaultAccount] = (0, program_1.getTorchVaultPda)(vaultCreator);
+        [vaultWalletLinkAccount] = (0, program_1.getVaultWalletLinkPda)(borrower);
+        vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, torchVaultAccount, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    }
     const tx = new web3_js_1.Transaction();
+    // Create vault ATA if needed
+    if (vaultTokenAccount && torchVaultAccount) {
+        tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(borrower, vaultTokenAccount, torchVaultAccount, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    }
     const provider = makeDummyProvider(connection, borrower);
     const program = new anchor_1.Program(torch_market_json_1.default, provider);
     const borrowIx = await program.methods
@@ -599,15 +648,19 @@ const buildBorrowTransaction = async (connection, params) => {
         poolState: raydium.poolState,
         tokenVault0: raydium.token0Vault,
         tokenVault1: raydium.token1Vault,
+        torchVault: torchVaultAccount,
+        vaultWalletLink: vaultWalletLinkAccount,
+        vaultTokenAccount,
         tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
         systemProgram: web3_js_1.SystemProgram.programId,
     })
         .instruction();
     tx.add(borrowIx);
     await finalizeTransaction(connection, tx, borrower);
+    const vaultLabel = vaultCreatorStr ? ' (via vault)' : '';
     return {
         transaction: tx,
-        message: `Borrow ${Number(sol_to_borrow) / 1e9} SOL with ${Number(collateral_amount) / 1e6} tokens as collateral`,
+        message: `Borrow ${Number(sol_to_borrow) / 1e9} SOL with ${Number(collateral_amount) / 1e6} tokens as collateral${vaultLabel}`,
     };
 };
 exports.buildBorrowTransaction = buildBorrowTransaction;
@@ -625,7 +678,7 @@ exports.buildBorrowTransaction = buildBorrowTransaction;
  * @returns Unsigned transaction and descriptive message
  */
 const buildRepayTransaction = async (connection, params) => {
-    const { mint: mintStr, borrower: borrowerStr, sol_amount } = params;
+    const { mint: mintStr, borrower: borrowerStr, sol_amount, vault: vaultCreatorStr } = params;
     const mint = new web3_js_1.PublicKey(mintStr);
     const borrower = new web3_js_1.PublicKey(borrowerStr);
     // Derive PDAs
@@ -633,7 +686,21 @@ const buildRepayTransaction = async (connection, params) => {
     const [collateralVaultPda] = (0, program_1.getCollateralVaultPda)(mint);
     const [loanPositionPda] = (0, program_1.getLoanPositionPda)(mint, borrower);
     const borrowerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, borrower, false, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    // [V18] Vault accounts (optional — SOL from vault, collateral returns to vault ATA)
+    let torchVaultAccount = null;
+    let vaultWalletLinkAccount = null;
+    let vaultTokenAccount = null;
+    if (vaultCreatorStr) {
+        const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
+        [torchVaultAccount] = (0, program_1.getTorchVaultPda)(vaultCreator);
+        [vaultWalletLinkAccount] = (0, program_1.getVaultWalletLinkPda)(borrower);
+        vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, torchVaultAccount, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    }
     const tx = new web3_js_1.Transaction();
+    // Create vault ATA if needed (collateral returns here)
+    if (vaultTokenAccount && torchVaultAccount) {
+        tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(borrower, vaultTokenAccount, torchVaultAccount, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    }
     const provider = makeDummyProvider(connection, borrower);
     const program = new anchor_1.Program(torch_market_json_1.default, provider);
     const repayIx = await program.methods
@@ -645,15 +712,19 @@ const buildRepayTransaction = async (connection, params) => {
         collateralVault: collateralVaultPda,
         borrowerTokenAccount,
         loanPosition: loanPositionPda,
+        torchVault: torchVaultAccount,
+        vaultWalletLink: vaultWalletLinkAccount,
+        vaultTokenAccount,
         tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
         systemProgram: web3_js_1.SystemProgram.programId,
     })
         .instruction();
     tx.add(repayIx);
     await finalizeTransaction(connection, tx, borrower);
+    const vaultLabel = vaultCreatorStr ? ' (via vault)' : '';
     return {
         transaction: tx,
-        message: `Repay ${Number(sol_amount) / 1e9} SOL`,
+        message: `Repay ${Number(sol_amount) / 1e9} SOL${vaultLabel}`,
     };
 };
 exports.buildRepayTransaction = buildRepayTransaction;
@@ -715,4 +786,134 @@ const buildLiquidateTransaction = async (connection, params) => {
     };
 };
 exports.buildLiquidateTransaction = buildLiquidateTransaction;
+// ============================================================================
+// Withdraw Tokens (V18)
+// ============================================================================
+/**
+ * Build an unsigned withdraw tokens transaction.
+ *
+ * Withdraw tokens from a vault ATA to any destination token account.
+ * Authority only. Composability escape hatch for external DeFi.
+ *
+ * @param connection - Solana RPC connection
+ * @param params - Authority, vault creator, mint, destination, amount in raw units
+ * @returns Unsigned transaction
+ */
+const buildWithdrawTokensTransaction = async (connection, params) => {
+    const authority = new web3_js_1.PublicKey(params.authority);
+    const vaultCreator = new web3_js_1.PublicKey(params.vault_creator);
+    const mint = new web3_js_1.PublicKey(params.mint);
+    const destination = new web3_js_1.PublicKey(params.destination);
+    const [vaultPda] = (0, program_1.getTorchVaultPda)(vaultCreator);
+    const vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, vaultPda, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    const destinationTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, destination, false, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    const tx = new web3_js_1.Transaction();
+    // Create destination ATA if needed
+    tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(authority, destinationTokenAccount, destination, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    const provider = makeDummyProvider(connection, authority);
+    const program = new anchor_1.Program(torch_market_json_1.default, provider);
+    const ix = await program.methods
+        .withdrawTokens(new anchor_1.BN(params.amount.toString()))
+        .accounts({
+        authority,
+        vault: vaultPda,
+        mint,
+        vaultTokenAccount,
+        destinationTokenAccount,
+        tokenProgram: spl_token_1.TOKEN_2022_PROGRAM_ID,
+    })
+        .instruction();
+    tx.add(ix);
+    await finalizeTransaction(connection, tx, authority);
+    return {
+        transaction: tx,
+        message: `Withdraw ${params.amount} tokens from vault to ${params.destination.slice(0, 8)}...`,
+    };
+};
+exports.buildWithdrawTokensTransaction = buildWithdrawTokensTransaction;
+// ============================================================================
+// Vault Swap (V19)
+// ============================================================================
+/**
+ * Build an unsigned vault-routed DEX swap transaction.
+ *
+ * Executes a Raydium CPMM swap through the vault PDA for migrated Torch tokens.
+ * Full custody preserved — all value flows through the vault.
+ *
+ * @param connection - Solana RPC connection
+ * @param params - Swap parameters (mint, signer, vault_creator, amount_in, minimum_amount_out, is_buy)
+ * @returns Unsigned transaction and descriptive message
+ */
+const buildVaultSwapTransaction = async (connection, params) => {
+    const { mint: mintStr, signer: signerStr, vault_creator: vaultCreatorStr, amount_in, minimum_amount_out, is_buy } = params;
+    const mint = new web3_js_1.PublicKey(mintStr);
+    const signer = new web3_js_1.PublicKey(signerStr);
+    const vaultCreator = new web3_js_1.PublicKey(vaultCreatorStr);
+    // Derive vault PDAs
+    const [torchVaultPda] = (0, program_1.getTorchVaultPda)(vaultCreator);
+    const [vaultWalletLinkPda] = (0, program_1.getVaultWalletLinkPda)(signer);
+    const [bondingCurvePda] = (0, program_1.getBondingCurvePda)(mint);
+    // Vault's token ATA (Token-2022)
+    const vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, torchVaultPda, true, spl_token_1.TOKEN_2022_PROGRAM_ID);
+    // Vault's WSOL ATA (SPL Token — persistent, reused across swaps)
+    const vaultWsolAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(constants_1.WSOL_MINT, torchVaultPda, true, spl_token_1.TOKEN_PROGRAM_ID);
+    // Raydium pool accounts
+    const raydium = (0, program_1.getRaydiumMigrationAccounts)(mint);
+    const tx = new web3_js_1.Transaction();
+    // Create vault token ATA if needed (for first buy of a migrated token)
+    tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(signer, vaultTokenAccount, torchVaultPda, mint, spl_token_1.TOKEN_2022_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    // Create vault WSOL ATA if needed (persistent — reused across swaps)
+    tx.add((0, spl_token_1.createAssociatedTokenAccountIdempotentInstruction)(signer, vaultWsolAccount, torchVaultPda, constants_1.WSOL_MINT, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+    const provider = makeDummyProvider(connection, signer);
+    const program = new anchor_1.Program(torch_market_json_1.default, provider);
+    // On buy: fund WSOL with lamports from vault in a separate instruction
+    // (isolates direct lamport manipulation from CPIs to avoid runtime balance errors)
+    if (is_buy) {
+        const fundIx = await program.methods
+            .fundVaultWsol(new anchor_1.BN(amount_in.toString()))
+            .accounts({
+            signer,
+            torchVault: torchVaultPda,
+            vaultWalletLink: vaultWalletLinkPda,
+            vaultWsolAccount,
+        })
+            .instruction();
+        tx.add(fundIx);
+    }
+    const swapIx = await program.methods
+        .vaultSwap(new anchor_1.BN(amount_in.toString()), new anchor_1.BN(minimum_amount_out.toString()), is_buy)
+        .accounts({
+        signer,
+        torchVault: torchVaultPda,
+        vaultWalletLink: vaultWalletLinkPda,
+        mint,
+        bondingCurve: bondingCurvePda,
+        vaultTokenAccount,
+        vaultWsolAccount,
+        raydiumProgram: constants_1.RAYDIUM_CPMM_PROGRAM,
+        raydiumAuthority: raydium.raydiumAuthority,
+        ammConfig: constants_1.RAYDIUM_AMM_CONFIG,
+        poolState: raydium.poolState,
+        poolTokenVault0: raydium.token0Vault,
+        poolTokenVault1: raydium.token1Vault,
+        observationState: raydium.observationState,
+        wsolMint: constants_1.WSOL_MINT,
+        tokenProgram: spl_token_1.TOKEN_PROGRAM_ID,
+        token2022Program: spl_token_1.TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: web3_js_1.SystemProgram.programId,
+    })
+        .instruction();
+    tx.add(swapIx);
+    await finalizeTransaction(connection, tx, signer);
+    const direction = is_buy ? 'Buy' : 'Sell';
+    const amountLabel = is_buy
+        ? `${amount_in / 1e9} SOL`
+        : `${amount_in / 1e6} tokens`;
+    return {
+        transaction: tx,
+        message: `${direction} ${amountLabel} via vault DEX swap`,
+    };
+};
+exports.buildVaultSwapTransaction = buildVaultSwapTransaction;
 //# sourceMappingURL=transactions.js.map

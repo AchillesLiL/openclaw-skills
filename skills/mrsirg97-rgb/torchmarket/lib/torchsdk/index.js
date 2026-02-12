@@ -11,7 +11,7 @@
  *   const tx = await buildBuyTransaction(connection, { mint, buyer, amount_sol: 100_000_000 });
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TOTAL_SUPPLY = exports.TOKEN_MULTIPLIER = exports.LAMPORTS_PER_SOL = exports.PROGRAM_ID = exports.confirmTransaction = exports.verifySaid = exports.buildTransferAuthorityTransaction = exports.buildUnlinkWalletTransaction = exports.buildLinkWalletTransaction = exports.buildWithdrawVaultTransaction = exports.buildDepositVaultTransaction = exports.buildCreateVaultTransaction = exports.buildLiquidateTransaction = exports.buildRepayTransaction = exports.buildBorrowTransaction = exports.buildStarTransaction = exports.buildCreateTokenTransaction = exports.buildSellTransaction = exports.buildDirectBuyTransaction = exports.buildBuyTransaction = exports.getSellQuote = exports.getBuyQuote = exports.getVaultWalletLink = exports.getVaultForWallet = exports.getVault = exports.getLoanPosition = exports.getLendingInfo = exports.getMessages = exports.getHolders = exports.getToken = exports.getTokens = void 0;
+exports.TOTAL_SUPPLY = exports.TOKEN_MULTIPLIER = exports.LAMPORTS_PER_SOL = exports.PROGRAM_ID = exports.confirmTransaction = exports.verifySaid = exports.createEphemeralAgent = exports.buildVaultSwapTransaction = exports.buildWithdrawTokensTransaction = exports.buildTransferAuthorityTransaction = exports.buildUnlinkWalletTransaction = exports.buildLinkWalletTransaction = exports.buildWithdrawVaultTransaction = exports.buildDepositVaultTransaction = exports.buildCreateVaultTransaction = exports.buildLiquidateTransaction = exports.buildRepayTransaction = exports.buildBorrowTransaction = exports.buildStarTransaction = exports.buildCreateTokenTransaction = exports.buildSellTransaction = exports.buildDirectBuyTransaction = exports.buildBuyTransaction = exports.getSellQuote = exports.getBuyQuote = exports.getVaultWalletLink = exports.getVaultForWallet = exports.getVault = exports.getLoanPosition = exports.getLendingInfo = exports.getMessages = exports.getHolders = exports.getToken = exports.getTokens = void 0;
 // Token data
 var tokens_1 = require("./tokens");
 Object.defineProperty(exports, "getTokens", { enumerable: true, get: function () { return tokens_1.getTokens; } });
@@ -43,6 +43,11 @@ Object.defineProperty(exports, "buildWithdrawVaultTransaction", { enumerable: tr
 Object.defineProperty(exports, "buildLinkWalletTransaction", { enumerable: true, get: function () { return transactions_1.buildLinkWalletTransaction; } });
 Object.defineProperty(exports, "buildUnlinkWalletTransaction", { enumerable: true, get: function () { return transactions_1.buildUnlinkWalletTransaction; } });
 Object.defineProperty(exports, "buildTransferAuthorityTransaction", { enumerable: true, get: function () { return transactions_1.buildTransferAuthorityTransaction; } });
+Object.defineProperty(exports, "buildWithdrawTokensTransaction", { enumerable: true, get: function () { return transactions_1.buildWithdrawTokensTransaction; } });
+Object.defineProperty(exports, "buildVaultSwapTransaction", { enumerable: true, get: function () { return transactions_1.buildVaultSwapTransaction; } });
+// Ephemeral Agent
+var ephemeral_1 = require("./ephemeral");
+Object.defineProperty(exports, "createEphemeralAgent", { enumerable: true, get: function () { return ephemeral_1.createEphemeralAgent; } });
 // SAID Protocol
 var said_1 = require("./said");
 Object.defineProperty(exports, "verifySaid", { enumerable: true, get: function () { return said_1.verifySaid; } });
