@@ -3,11 +3,16 @@
   "slug": "openclaw-marshal",
   "displayName": "Openclaw Marshal",
   "latest": {
-    "version": "1.0.1",
-    "publishedAt": 1770313157735,
-    "commit": "https://github.com/clawdbot/skills/commit/7e54a1e93e2375adcec60576b6c81b323ec2d2d0"
+    "version": "1.0.2",
+    "publishedAt": 1770891986082,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.1",
+      "publishedAt": 1770313157735,
+      "commit": "https://github.com/clawdbot/skills/commit/7e54a1e93e2375adcec60576b6c81b323ec2d2d0"
+    },
     {
       "version": "1.0.0",
       "publishedAt": 1770290882846,

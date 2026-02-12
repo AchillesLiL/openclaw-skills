@@ -1,6 +1,5 @@
 ---
 name: openclaw-marshal
-description: "Compliance and policy enforcement for agent workspaces. Define security policies, audit compliance, check command restrictions, and generate audit-ready reports. Free alert layer — upgrade to openclaw-marshal-pro for active enforcement, blocking, and automated remediation."
 user-invocable: true
 metadata: {"openclaw":{"emoji":"📋","requires":{"bins":["python3"]},"os":["darwin","linux","win32"]}}
 ---
@@ -15,7 +14,6 @@ Agent workspaces accumulate skills that execute commands, access the network, an
 
 This skill lets you define a policy once and audit everything against it.
 
-**Need active enforcement?** Upgrade to [openclaw-marshal-pro](https://github.com/AtlasPA/openclaw-marshal-pro) for hook-based blocking, auto-remediation, heartbeat integration, and compliance templates (GDPR, HIPAA, SOC2).
 
 ## Commands
 

@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""OpenClaw Marshal — Compliance and policy enforcement for agent workspaces.
+"""OpenClaw Marshal— Full compliance and policy enforcement suite.
 
-Define security policies, audit workspace compliance, check skills against
-policy rules, and generate audit-ready compliance reports.
+Everything in openclaw-marshal (free) PLUS active enforcement: auto-quarantine
+non-compliant skills, generate runtime hooks, apply compliance templates, and
+run full automated protection sweeps.
 
-Free version: Alert (audit + report).
-Pro version: Active enforcement, blocking, auto-remediation.
+Free = alert.  Pro = subvert + quarantine + defend.
 
 Usage:
-    marshal.py audit    [--workspace PATH]
-    marshal.py policy   [--init] [--show] [--workspace PATH]
-    marshal.py check    <skill> [--workspace PATH]
-    marshal.py report   [--workspace PATH]
-    marshal.py status   [--workspace PATH]
+    marshal.py audit       [--workspace PATH]
+    marshal.py policy      [--init] [--show] [--workspace PATH]
+    marshal.py check       <skill> [--workspace PATH]
+    marshal.py report      [--workspace PATH]
+    marshal.py status      [--workspace PATH]
+    marshal.py enforce     [--workspace PATH]
+    marshal.py quarantine  <skill> [--workspace PATH]
+    marshal.py unquarantine <skill> [--workspace PATH]
+    marshal.py hooks       [--workspace PATH]
+    marshal.py templates   [--list] [--apply <name>] [--workspace PATH]
+    marshal.py protect     [--workspace PATH]
 """
 
 import argparse
@@ -20,6 +26,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -39,19 +46,28 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 
 POLICY_FILE = ".marshal-policy.json"
 POLICY_VERSION = 1
+QUARANTINE_PREFIX = ".quarantined-"
 
 SKIP_DIRS = {
     ".git", "node_modules", "__pycache__", ".venv", "venv",
     ".integrity", ".quarantine", ".snapshots",
 }
 
-SELF_SKILL_DIRS = {"openclaw-marshal", "openclaw-marshal-pro"}
+SELF_SKILL_DIRS = {"openclaw-marshal", "openclaw-marshal"}
 
 SEVERITY_CRITICAL = "CRITICAL"
 SEVERITY_HIGH = "HIGH"
 SEVERITY_MEDIUM = "MEDIUM"
 SEVERITY_LOW = "LOW"
 SEVERITY_INFO = "INFO"
+
+SEVERITY_RANK = {
+    SEVERITY_CRITICAL: 4,
+    SEVERITY_HIGH: 3,
+    SEVERITY_MEDIUM: 2,
+    SEVERITY_LOW: 1,
+    SEVERITY_INFO: 0,
+}
 
 # Dangerous command patterns to scan for in skill scripts
 DANGEROUS_COMMAND_PATTERNS = [
@@ -82,6 +98,14 @@ DEBUG_PATTERNS = [
     (re.compile(r"\bprint\s*\(\s*f?['\"](?:DEBUG|TRACE)"), "debug print statement"),
 ]
 
+# PII patterns for hook generation
+PII_PATTERNS = [
+    r"\b\d{3}-\d{2}-\d{4}\b",                          # SSN
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",  # email
+    r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",       # credit card
+    r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",  # phone
+]
+
 # ---------------------------------------------------------------------------
 # Default policy template
 # ---------------------------------------------------------------------------
@@ -110,6 +134,103 @@ DEFAULT_POLICY = {
             "require_audit_trail": True,
             "require_skill_signing": True,
             "max_skill_risk_score": 50,
+        },
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Compliance templates (Pro)
+# ---------------------------------------------------------------------------
+
+COMPLIANCE_TEMPLATES = {
+    "general": {
+        "version": POLICY_VERSION,
+        "name": "general",
+        "description": "Balanced compliance policy suitable for most workspaces.",
+        "rules": {
+            "commands": {
+                "allow": ["git", "python3", "node", "npm", "pip", "cargo", "go"],
+                "block": ["curl|bash", "wget -O-|sh", "rm -rf /", "chmod 777"],
+                "review": ["sudo", "docker", "ssh"],
+            },
+            "network": {
+                "allow_domains": ["github.com", "pypi.org", "npmjs.com", "crates.io", "pkg.go.dev"],
+                "block_domains": ["pastebin.com", "transfer.sh", "ngrok.io"],
+                "block_patterns": ["*.tk", "*.ml", "*.ga"],
+            },
+            "data_handling": {
+                "pii_scan": True,
+                "secret_scan": True,
+                "log_retention_days": 90,
+            },
+            "workspace": {
+                "require_gitignore": True,
+                "require_audit_trail": True,
+                "require_skill_signing": False,
+                "max_skill_risk_score": 50,
+            },
+        },
+    },
+    "enterprise": {
+        "version": POLICY_VERSION,
+        "name": "enterprise",
+        "description": "Strict enterprise compliance. Requires all security tools installed.",
+        "rules": {
+            "commands": {
+                "allow": ["git", "python3", "node"],
+                "block": [
+                    "curl|bash", "wget -O-|sh", "rm -rf /", "chmod 777",
+                    "pip install", "npm install",
+                ],
+                "review": ["sudo", "docker", "ssh", "pip", "npm", "cargo"],
+            },
+            "network": {
+                "allow_domains": ["github.com"],
+                "block_domains": [
+                    "pastebin.com", "transfer.sh", "ngrok.io",
+                    "hastebin.com", "ghostbin.com", "0x0.st",
+                ],
+                "block_patterns": ["*.tk", "*.ml", "*.ga", "*.cf", "*.gq"],
+            },
+            "data_handling": {
+                "pii_scan": True,
+                "secret_scan": True,
+                "log_retention_days": 365,
+            },
+            "workspace": {
+                "require_gitignore": True,
+                "require_audit_trail": True,
+                "require_skill_signing": True,
+                "max_skill_risk_score": 30,
+            },
+        },
+    },
+    "minimal": {
+        "version": POLICY_VERSION,
+        "name": "minimal",
+        "description": "Lightweight policy covering critical security checks only.",
+        "rules": {
+            "commands": {
+                "allow": [],
+                "block": ["curl|bash", "wget -O-|sh", "rm -rf /", "chmod 777"],
+                "review": [],
+            },
+            "network": {
+                "allow_domains": [],
+                "block_domains": ["pastebin.com", "transfer.sh", "ngrok.io"],
+                "block_patterns": ["*.tk", "*.ml", "*.ga"],
+            },
+            "data_handling": {
+                "pii_scan": False,
+                "secret_scan": True,
+                "log_retention_days": 30,
+            },
+            "workspace": {
+                "require_gitignore": True,
+                "require_audit_trail": False,
+                "require_skill_signing": False,
+                "max_skill_risk_score": 75,
+            },
         },
     },
 }
@@ -163,7 +284,7 @@ def save_policy(workspace: Path, policy: dict):
 
 
 def find_skills(workspace: Path) -> list[Path]:
-    """Find all installed skill directories."""
+    """Find all installed skill directories (excludes quarantined)."""
     skills_dir = workspace / "skills"
     if not skills_dir.exists():
         return []
@@ -181,6 +302,20 @@ def find_skills(workspace: Path) -> list[Path]:
         if skill_md.exists():
             skills.append(entry)
     return skills
+
+
+def find_quarantined_skills(workspace: Path) -> list[Path]:
+    """Find all quarantined skill directories."""
+    skills_dir = workspace / "skills"
+    if not skills_dir.exists():
+        return []
+    quarantined = []
+    for entry in sorted(skills_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        if entry.name.startswith(QUARANTINE_PREFIX):
+            quarantined.append(entry)
+    return quarantined
 
 
 def parse_skill_metadata(skill_md_path: Path) -> dict:
@@ -398,7 +533,7 @@ def check_data_handling(workspace: Path, policy: dict) -> list[dict]:
     if rules.get("secret_scan", False):
         sentry_installed = (
             (skills_dir / "openclaw-sentry").is_dir()
-            or (skills_dir / "openclaw-sentry-pro").is_dir()
+            or (skills_dir / "openclaw-sentry").is_dir()
         )
         if not sentry_installed:
             findings.append({
@@ -411,10 +546,9 @@ def check_data_handling(workspace: Path, policy: dict) -> list[dict]:
             })
 
     if rules.get("pii_scan", False):
-        # PII scanning requires sentry or a dedicated PII scanner
         sentry_installed = (
             (skills_dir / "openclaw-sentry").is_dir()
-            or (skills_dir / "openclaw-sentry-pro").is_dir()
+            or (skills_dir / "openclaw-sentry").is_dir()
         )
         if not sentry_installed:
             findings.append({
@@ -468,7 +602,7 @@ def check_workspace_hygiene(workspace: Path, policy: dict) -> list[dict]:
         skills_dir = workspace / "skills"
         ledger_installed = (
             (skills_dir / "openclaw-ledger").is_dir()
-            or (skills_dir / "openclaw-ledger-pro").is_dir()
+            or (skills_dir / "openclaw-ledger").is_dir()
         )
         ledger_dir = workspace / ".ledger"
         has_ledger_data = ledger_dir.is_dir() and any(ledger_dir.iterdir()) if ledger_dir.is_dir() else False
@@ -497,7 +631,7 @@ def check_workspace_hygiene(workspace: Path, policy: dict) -> list[dict]:
         skills_dir = workspace / "skills"
         signet_installed = (
             (skills_dir / "openclaw-signet").is_dir()
-            or (skills_dir / "openclaw-signet-pro").is_dir()
+            or (skills_dir / "openclaw-signet").is_dir()
         )
         signet_manifest = workspace / ".signet" / "trust.json"
         has_signet_data = signet_manifest.is_file()
@@ -559,7 +693,6 @@ def compute_compliance_score(findings: list[dict]) -> int:
     if not findings:
         return 100
 
-    # Deductions by severity
     deductions = {
         SEVERITY_CRITICAL: 25,
         SEVERITY_HIGH: 15,
@@ -575,8 +708,80 @@ def compute_compliance_score(findings: list[dict]) -> int:
     return score
 
 
+def severity_counts(findings: list[dict]) -> dict:
+    """Return a dict of severity -> count."""
+    counts = {
+        SEVERITY_CRITICAL: 0,
+        SEVERITY_HIGH: 0,
+        SEVERITY_MEDIUM: 0,
+        SEVERITY_LOW: 0,
+        SEVERITY_INFO: 0,
+    }
+    for f in findings:
+        sev = f.get("severity", SEVERITY_INFO)
+        if sev in counts:
+            counts[sev] += 1
+    return counts
+
+
+def generate_fix_recommendation(finding: dict) -> str:
+    """Generate a human-readable fix recommendation for a finding."""
+    rule = finding.get("rule", "")
+    desc = finding.get("description", "")
+    sev = finding.get("severity", SEVERITY_INFO)
+
+    if "pipe-to-shell" in desc:
+        return "Download the file first, verify its integrity, then execute separately."
+    if "recursive root deletion" in desc:
+        return "Use targeted paths instead of 'rm -rf /'. Scope deletion to specific directories."
+    if "world-writable permissions" in desc:
+        return "Use restrictive permissions (e.g., chmod 755 or chmod 644)."
+    if "eval() call" in desc or "exec() call" in desc:
+        return "Replace eval/exec with explicit function calls or safe alternatives."
+    if "unsafe deserialization" in desc:
+        return "Use json.loads() or a safe serialization format instead of pickle."
+    if "dynamic import" in desc:
+        return "Use explicit import statements instead of __import__."
+    if "os.system" in desc:
+        return "Use subprocess.run() with a list of arguments (no shell=True)."
+    if "shell=True" in desc:
+        return "Pass command as a list to subprocess and remove shell=True."
+    if "compile() call" in desc:
+        return "Avoid dynamic code compilation. Use static function definitions."
+    if "Blocked domain" in desc:
+        return "Remove references to blocked domains or request a policy exception."
+    if "blocked pattern" in desc.lower():
+        return "Remove references to suspicious TLD domains or add to allow list if legitimate."
+    if "not on allow list" in desc:
+        return "Add the domain to the policy allow list if it is a legitimate dependency."
+    if "Blocked command pattern" in desc:
+        return "Remove the blocked command pattern or replace with an approved alternative."
+    if "Requires review" in desc:
+        return "Document the use case and get approval for the review-required command."
+    if "debug mode" in desc.lower() or "verbose mode" in desc.lower():
+        return "Disable debug/verbose modes before deploying to production."
+    if "debug print" in desc.lower() or "debug-level" in desc.lower():
+        return "Remove debug print statements and set logging to INFO or WARNING level."
+    if "secret_scan" in rule:
+        return "Install openclaw-sentry or openclaw-sentry for secret scanning."
+    if "pii_scan" in rule:
+        return "Install openclaw-sentry for PII scanning capabilities."
+    if "gitignore" in rule:
+        return "Create a .gitignore with patterns for .env, *.pem, and *.key."
+    if "audit_trail" in rule:
+        return "Install openclaw-ledger and run 'ledger init' to enable audit trails."
+    if "skill_signing" in rule:
+        return "Install openclaw-signet and run 'signet sign' to enable skill signing."
+
+    if sev == SEVERITY_CRITICAL:
+        return "Immediately investigate and remediate this critical violation."
+    if sev == SEVERITY_HIGH:
+        return "Address this high-severity finding before next deployment."
+    return "Review and address this finding when feasible."
+
+
 # ---------------------------------------------------------------------------
-# Commands
+# Basic commands (audit, policy, check, report, status)
 # ---------------------------------------------------------------------------
 
 def cmd_policy(workspace: Path, init: bool, show: bool):
@@ -634,7 +839,7 @@ def cmd_audit(workspace: Path) -> int:
         return 1
 
     print("=" * 60)
-    print("OPENCLAW MARSHAL — COMPLIANCE AUDIT")
+    print("OPENCLAW MARSHAL FULL — COMPLIANCE AUDIT")
     print("=" * 60)
     print(f"Workspace: {workspace}")
     print(f"Policy: {policy.get('name', 'unnamed')} (v{policy.get('version', '?')})")
@@ -664,6 +869,15 @@ def cmd_audit(workspace: Path) -> int:
 
         all_findings.extend(skill_findings)
 
+    # Quarantined skills
+    quarantined = find_quarantined_skills(workspace)
+    if quarantined:
+        print()
+        print(f"Quarantined skills ({len(quarantined)}):")
+        for q in quarantined:
+            original_name = q.name[len(QUARANTINE_PREFIX):]
+            print(f"  [QUARANTINED] {original_name}")
+
     print()
 
     # Workspace-level checks
@@ -683,49 +897,44 @@ def cmd_audit(workspace: Path) -> int:
 
     # Score
     score = compute_compliance_score(all_findings)
+    counts = severity_counts(all_findings)
+
     print("=" * 60)
     print(f"COMPLIANCE SCORE: {score}%")
     print("=" * 60)
 
-    critical_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_CRITICAL)
-    high_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_HIGH)
-    medium_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_MEDIUM)
-    low_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_LOW)
-    info_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_INFO)
-
     if all_findings:
-        print(f"  CRITICAL: {critical_count}")
-        print(f"  HIGH:     {high_count}")
-        print(f"  MEDIUM:   {medium_count}")
-        print(f"  LOW:      {low_count}")
-        print(f"  INFO:     {info_count}")
+        print(f"  CRITICAL: {counts[SEVERITY_CRITICAL]}")
+        print(f"  HIGH:     {counts[SEVERITY_HIGH]}")
+        print(f"  MEDIUM:   {counts[SEVERITY_MEDIUM]}")
+        print(f"  LOW:      {counts[SEVERITY_LOW]}")
+        print(f"  INFO:     {counts[SEVERITY_INFO]}")
     else:
         print("  No violations detected. Full compliance achieved.")
 
     print()
 
-    # Recommendations
     if all_findings:
         print("RECOMMENDATIONS:")
-        if critical_count:
+        if counts[SEVERITY_CRITICAL]:
             print("  - CRITICAL: Immediately address blocked command/network violations")
-        if high_count:
+            print("    TIP: Run 'marshal enforce' to auto-quarantine critical violations")
+        if counts[SEVERITY_HIGH]:
             print("  - HIGH: Install missing security tools (sentry, ledger, signet)")
-        if medium_count:
+        if counts[SEVERITY_MEDIUM]:
             print("  - MEDIUM: Review flagged commands and workspace configuration")
-        if low_count:
+        if counts[SEVERITY_LOW]:
             print("  - LOW: Disable debug modes and add .gitignore patterns")
-        if info_count:
+        if counts[SEVERITY_INFO]:
             print("  - INFO: Review unlisted domains for policy inclusion")
         print()
-        print("Upgrade to openclaw-marshal-pro for active enforcement:")
-        print("  hook-based blocking, auto-remediation, heartbeat integration")
+        print("Pro commands available: enforce, quarantine, hooks, templates, protect")
 
     print("=" * 60)
 
-    if critical_count > 0:
+    if counts[SEVERITY_CRITICAL] > 0:
         return 2
-    elif high_count > 0 or medium_count > 0:
+    elif counts[SEVERITY_HIGH] > 0 or counts[SEVERITY_MEDIUM] > 0:
         return 1
     return 0
 
@@ -775,15 +984,14 @@ def cmd_check(workspace: Path, skill_name: str) -> int:
         by_rule.setdefault(f["rule"], []).append(f)
 
     for rule, findings in sorted(by_rule.items()):
-        severity = max(findings, key=lambda x: {
-            SEVERITY_CRITICAL: 4, SEVERITY_HIGH: 3, SEVERITY_MEDIUM: 2,
-            SEVERITY_LOW: 1, SEVERITY_INFO: 0,
-        }.get(x["severity"], 0))["severity"]
+        severity = max(findings, key=lambda x: SEVERITY_RANK.get(x["severity"], 0))["severity"]
 
         print(f"  FAIL  [{severity:8s}] {rule}")
         for f in findings[:5]:
             loc = f"{f['file']}:{f['line']}" if f["line"] else f["file"]
             print(f"        {loc} — {f['description']}")
+            rec = generate_fix_recommendation(f)
+            print(f"        FIX: {rec}")
         if len(findings) > 5:
             print(f"        ... and {len(findings) - 5} more")
         print()
@@ -824,30 +1032,30 @@ def cmd_report(workspace: Path) -> int:
     all_findings.extend(ws_findings)
 
     score = compute_compliance_score(all_findings)
+    counts = severity_counts(all_findings)
 
     # --- Formatted report ---
     print("=" * 70)
     print("COMPLIANCE REPORT")
-    print("OpenClaw Marshal — Workspace Policy Audit")
+    print("OpenClaw Marshal— Workspace Policy Audit")
     print("=" * 70)
     print()
     print(f"  Workspace:  {workspace}")
     print(f"  Policy:     {policy.get('name', 'unnamed')} (v{policy.get('version', '?')})")
     print(f"  Generated:  {now_iso()}")
     print(f"  Skills:     {len(skills)} installed")
+
+    quarantined = find_quarantined_skills(workspace)
+    if quarantined:
+        print(f"  Quarantined: {len(quarantined)}")
     print()
 
     # Summary
     print("-" * 70)
     print("SUMMARY")
     print("-" * 70)
-    critical_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_CRITICAL)
-    high_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_HIGH)
-    medium_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_MEDIUM)
-    low_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_LOW)
-    info_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_INFO)
-
     print()
+
     if score >= 90:
         grade = "A"
     elif score >= 75:
@@ -861,11 +1069,11 @@ def cmd_report(workspace: Path) -> int:
 
     print(f"  Compliance Score:  {score}% (Grade: {grade})")
     print(f"  Total Findings:    {len(all_findings)}")
-    print(f"    Critical:        {critical_count}")
-    print(f"    High:            {high_count}")
-    print(f"    Medium:          {medium_count}")
-    print(f"    Low:             {low_count}")
-    print(f"    Informational:   {info_count}")
+    print(f"    Critical:        {counts[SEVERITY_CRITICAL]}")
+    print(f"    High:            {counts[SEVERITY_HIGH]}")
+    print(f"    Medium:          {counts[SEVERITY_MEDIUM]}")
+    print(f"    Low:             {counts[SEVERITY_LOW]}")
+    print(f"    Informational:   {counts[SEVERITY_INFO]}")
     print()
 
     # Violations table
@@ -877,11 +1085,7 @@ def cmd_report(workspace: Path) -> int:
         print(f"  {'Severity':<10} {'Rule':<30} {'File':<20} Description")
         print(f"  {'--------':<10} {'----':<30} {'----':<20} -----------")
 
-        severity_order = {
-            SEVERITY_CRITICAL: 0, SEVERITY_HIGH: 1,
-            SEVERITY_MEDIUM: 2, SEVERITY_LOW: 3, SEVERITY_INFO: 4,
-        }
-        for f in sorted(all_findings, key=lambda x: severity_order.get(x["severity"], 5)):
+        for f in sorted(all_findings, key=lambda x: SEVERITY_RANK.get(x["severity"], 0), reverse=True):
             sev = f["severity"]
             rule = f["rule"][:28]
             fpath = f["file"][:18] if f["file"] else "-"
@@ -899,6 +1103,13 @@ def cmd_report(workspace: Path) -> int:
         skill_score = compute_compliance_score(findings)
         status = "PASS" if not findings else "FAIL"
         print(f"  {name:<30} {status:<6} {skill_score:>3}% ({len(findings)} finding(s))")
+
+    # Quarantined skills
+    if quarantined:
+        print()
+        for q in quarantined:
+            original_name = q.name[len(QUARANTINE_PREFIX):]
+            print(f"  {original_name:<30} QUAR   --- (quarantined)")
     print()
 
     # Workspace checks
@@ -922,25 +1133,26 @@ def cmd_report(workspace: Path) -> int:
         print(f"  {icon:<6} {check:<25} {status}")
     print()
 
-    # Recommendations
+    # Recommendations with fix suggestions (Pro)
     print("-" * 70)
     print("RECOMMENDATIONS")
     print("-" * 70)
     print()
     rec_num = 1
-    if critical_count:
+    if counts[SEVERITY_CRITICAL]:
         print(f"  {rec_num}. [CRITICAL] Remove or remediate blocked command/network patterns immediately.")
+        print(f"     ACTION: Run 'marshal enforce' to auto-quarantine critical violations.")
         rec_num += 1
-    if high_count:
+    if counts[SEVERITY_HIGH]:
         print(f"  {rec_num}. [HIGH] Install required security tools: check sentry, ledger, and signet.")
         rec_num += 1
-    if medium_count:
+    if counts[SEVERITY_MEDIUM]:
         print(f"  {rec_num}. [MEDIUM] Review flagged commands requiring approval. Update policy if intended.")
         rec_num += 1
-    if low_count:
+    if counts[SEVERITY_LOW]:
         print(f"  {rec_num}. [LOW] Disable debug/verbose modes. Update .gitignore patterns.")
         rec_num += 1
-    if info_count:
+    if counts[SEVERITY_INFO]:
         print(f"  {rec_num}. [INFO] Review unlisted network domains. Add to allow list if legitimate.")
         rec_num += 1
     if not all_findings:
@@ -951,9 +1163,9 @@ def cmd_report(workspace: Path) -> int:
     print("END OF REPORT")
     print("=" * 70)
 
-    if critical_count > 0:
+    if counts[SEVERITY_CRITICAL] > 0:
         return 2
-    elif high_count > 0 or medium_count > 0:
+    elif counts[SEVERITY_HIGH] > 0 or counts[SEVERITY_MEDIUM] > 0:
         return 1
     return 0
 
@@ -977,22 +1189,584 @@ def cmd_status(workspace: Path) -> int:
     all_findings.extend(check_workspace_hygiene(workspace, policy))
 
     score = compute_compliance_score(all_findings)
-    critical_count = sum(1 for f in all_findings if f["severity"] == SEVERITY_CRITICAL)
-
+    counts = severity_counts(all_findings)
     policy_name = policy.get("name", "unnamed")
+
+    quarantined = find_quarantined_skills(workspace)
+    quar_str = f", {len(quarantined)} quarantined" if quarantined else ""
 
     if not all_findings:
         print(f"STATUS: COMPLIANT — score {score}%, policy '{policy_name}', "
-              f"{len(skills)} skill(s) checked")
+              f"{len(skills)} skill(s) checked{quar_str}")
         return 0
-    elif critical_count > 0:
-        print(f"STATUS: NON-COMPLIANT — score {score}%, {critical_count} critical, "
-              f"{len(all_findings)} total finding(s)")
+    elif counts[SEVERITY_CRITICAL] > 0:
+        print(f"STATUS: NON-COMPLIANT — score {score}%, {counts[SEVERITY_CRITICAL]} critical, "
+              f"{len(all_findings)} total finding(s){quar_str}")
         return 2
     else:
         print(f"STATUS: REVIEW NEEDED — score {score}%, {len(all_findings)} finding(s), "
-              f"policy '{policy_name}'")
+              f"policy '{policy_name}'{quar_str}")
         return 1
+
+
+# ---------------------------------------------------------------------------
+# Pro commands (enforce, quarantine, unquarantine, hooks, templates, protect)
+# ---------------------------------------------------------------------------
+
+def cmd_enforce(workspace: Path) -> int:
+    """Active policy enforcement: scan all skills, quarantine critical violators."""
+    policy = load_policy(workspace)
+    if policy is None:
+        print("No policy found. Run 'marshal policy --init' first.")
+        return 1
+
+    print("=" * 60)
+    print("OPENCLAW MARSHAL FULL — ENFORCE")
+    print("=" * 60)
+    print(f"Workspace: {workspace}")
+    print(f"Policy: {policy.get('name', 'unnamed')} (v{policy.get('version', '?')})")
+    print(f"Timestamp: {now_iso()}")
+    print()
+
+    skills = find_skills(workspace)
+    skills_dir = workspace / "skills"
+
+    quarantined_count = 0
+    review_count = 0
+    compliant_count = 0
+    enforcement_log = []
+
+    for skill_dir in skills:
+        meta = parse_skill_metadata(skill_dir / "SKILL.md")
+        skill_name = meta["name"] or skill_dir.name
+
+        skill_findings = []
+        skill_findings.extend(check_command_safety(skill_dir, policy))
+        skill_findings.extend(check_network_policy(skill_dir, policy))
+        skill_findings.extend(check_configuration_security(skill_dir))
+
+        if not skill_findings:
+            print(f"  [PASS] {skill_name} — compliant")
+            compliant_count += 1
+            continue
+
+        counts = severity_counts(skill_findings)
+
+        # Auto-quarantine on CRITICAL violations
+        if counts[SEVERITY_CRITICAL] > 0:
+            quarantine_dest = skills_dir / f"{QUARANTINE_PREFIX}{skill_dir.name}"
+            try:
+                skill_dir.rename(quarantine_dest)
+                print(f"  [QUARANTINED] {skill_name} — {counts[SEVERITY_CRITICAL]} critical violation(s)")
+                for f in skill_findings:
+                    if f["severity"] == SEVERITY_CRITICAL:
+                        print(f"    {f['description']}")
+                        print(f"    FIX: {generate_fix_recommendation(f)}")
+                quarantined_count += 1
+                enforcement_log.append({
+                    "action": "quarantine",
+                    "skill": skill_name,
+                    "reason": f"{counts[SEVERITY_CRITICAL]} critical violation(s)",
+                    "timestamp": now_iso(),
+                })
+            except OSError as e:
+                print(f"  [ERROR] Failed to quarantine {skill_name}: {e}")
+                enforcement_log.append({
+                    "action": "quarantine_failed",
+                    "skill": skill_name,
+                    "error": str(e),
+                    "timestamp": now_iso(),
+                })
+        else:
+            # MEDIUM and below: generate recommendations only
+            print(f"  [REVIEW] {skill_name} — {len(skill_findings)} finding(s)")
+            review_count += 1
+            for f in skill_findings:
+                if f["severity"] in (SEVERITY_HIGH, SEVERITY_MEDIUM):
+                    rec = generate_fix_recommendation(f)
+                    print(f"    [{f['severity']:8s}] {f['description']}")
+                    print(f"    FIX: {rec}")
+
+    print()
+    print("-" * 60)
+    print("ENFORCEMENT SUMMARY")
+    print("-" * 60)
+    print(f"  Compliant:    {compliant_count}")
+    print(f"  Quarantined:  {quarantined_count}")
+    print(f"  Review needed: {review_count}")
+    print()
+
+    # Save enforcement log
+    log_dir = workspace / ".marshal"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "enforcement.log.json"
+
+    existing_log = []
+    if log_file.exists():
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                existing_log = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing_log = []
+
+    existing_log.extend(enforcement_log)
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(existing_log, f, indent=2)
+
+    if enforcement_log:
+        print(f"Enforcement log saved: {log_file}")
+
+    print("=" * 60)
+
+    if quarantined_count > 0:
+        return 2
+    elif review_count > 0:
+        return 1
+    return 0
+
+
+def cmd_quarantine(workspace: Path, skill_name: str) -> int:
+    """Quarantine a non-compliant skill by prefixing its directory."""
+    skills_dir = workspace / "skills"
+    skill_dir = skills_dir / skill_name
+
+    if not skill_dir.is_dir():
+        # Check if already quarantined
+        quarantined_dir = skills_dir / f"{QUARANTINE_PREFIX}{skill_name}"
+        if quarantined_dir.is_dir():
+            print(f"Skill '{skill_name}' is already quarantined.")
+            return 1
+        print(f"Skill not found: {skill_name}")
+        return 1
+
+    quarantine_dest = skills_dir / f"{QUARANTINE_PREFIX}{skill_name}"
+    if quarantine_dest.exists():
+        print(f"Quarantine destination already exists: {quarantine_dest.name}")
+        return 1
+
+    try:
+        skill_dir.rename(quarantine_dest)
+    except OSError as e:
+        print(f"Failed to quarantine '{skill_name}': {e}")
+        return 1
+
+    print(f"Quarantined: {skill_name}")
+    print(f"  Renamed: {skill_dir.name} -> {quarantine_dest.name}")
+    print(f"  The skill is now invisible to all agent tools.")
+    print()
+    print(f"To restore: marshal unquarantine {skill_name}")
+
+    # Log the action
+    log_dir = workspace / ".marshal"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "enforcement.log.json"
+
+    existing_log = []
+    if log_file.exists():
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                existing_log = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing_log = []
+
+    existing_log.append({
+        "action": "quarantine",
+        "skill": skill_name,
+        "reason": "manual quarantine",
+        "timestamp": now_iso(),
+    })
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(existing_log, f, indent=2)
+
+    return 0
+
+
+def cmd_unquarantine(workspace: Path, skill_name: str) -> int:
+    """Restore a quarantined skill."""
+    skills_dir = workspace / "skills"
+    quarantined_dir = skills_dir / f"{QUARANTINE_PREFIX}{skill_name}"
+
+    if not quarantined_dir.is_dir():
+        # Check if it is not quarantined
+        active_dir = skills_dir / skill_name
+        if active_dir.is_dir():
+            print(f"Skill '{skill_name}' is not quarantined — it is active.")
+            return 1
+        print(f"Quarantined skill not found: {skill_name}")
+        return 1
+
+    restore_dest = skills_dir / skill_name
+    if restore_dest.exists():
+        print(f"Cannot restore: '{skill_name}' already exists as an active skill.")
+        return 1
+
+    try:
+        quarantined_dir.rename(restore_dest)
+    except OSError as e:
+        print(f"Failed to restore '{skill_name}': {e}")
+        return 1
+
+    print(f"Restored: {skill_name}")
+    print(f"  Renamed: {quarantined_dir.name} -> {restore_dest.name}")
+    print(f"  The skill is now active and visible to agent tools.")
+    print()
+    print("Run 'marshal check' to verify compliance before use.")
+
+    # Log the action
+    log_dir = workspace / ".marshal"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "enforcement.log.json"
+
+    existing_log = []
+    if log_file.exists():
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                existing_log = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing_log = []
+
+    existing_log.append({
+        "action": "unquarantine",
+        "skill": skill_name,
+        "reason": "manual restore",
+        "timestamp": now_iso(),
+    })
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(existing_log, f, indent=2)
+
+    return 0
+
+
+def cmd_hooks(workspace: Path) -> int:
+    """Generate Claude Code hook configurations for runtime policy enforcement."""
+    policy = load_policy(workspace)
+    if policy is None:
+        print("No policy found. Run 'marshal policy --init' first.")
+        return 1
+
+    rules = policy.get("rules", {})
+    commands_rules = rules.get("commands", {})
+    blocked_cmds = commands_rules.get("block", [])
+    review_cmds = commands_rules.get("review", [])
+    data_rules = rules.get("data_handling", {})
+
+    print("=" * 60)
+    print("OPENCLAW MARSHAL FULL — HOOK GENERATOR")
+    print("=" * 60)
+    print(f"Policy: {policy.get('name', 'unnamed')}")
+    print()
+
+    # Build Bash command blocklist pattern
+    bash_deny_patterns = []
+    for bp in blocked_cmds:
+        bash_deny_patterns.append(bp)
+    for rp in review_cmds:
+        bash_deny_patterns.append(rp)
+    # Add built-in dangerous patterns
+    bash_deny_patterns.extend([
+        "curl*|*sh", "wget*|*sh", "rm -rf /",
+        "chmod 777", "eval(", "pickle.load",
+    ])
+
+    # Build PII regex pattern for Write hook
+    pii_regex_parts = PII_PATTERNS if data_rules.get("pii_scan", False) else []
+
+    hooks_config = {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _build_bash_hook_command(bash_deny_patterns),
+                            "timeout": 5,
+                        }
+                    ],
+                },
+            ],
+        }
+    }
+
+    # Add Write hook if PII scanning is enabled
+    if pii_regex_parts:
+        hooks_config["hooks"]["PreToolUse"].append({
+            "matcher": "Write",
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": _build_write_hook_command(pii_regex_parts),
+                    "timeout": 5,
+                }
+            ],
+        })
+
+    print("Generated hook configuration for .claude/settings.json:")
+    print()
+    print(json.dumps(hooks_config, indent=2))
+    print()
+    print("-" * 60)
+    print("INSTRUCTIONS")
+    print("-" * 60)
+    print()
+    print("1. Copy the JSON above into your .claude/settings.json file.")
+    print("2. Merge with existing hooks if present.")
+    print("3. The Bash hook blocks commands matching policy blocklist/review patterns.")
+    if pii_regex_parts:
+        print("4. The Write hook checks output content for PII patterns (SSN, email, CC, phone).")
+    print()
+    print("These hooks run BEFORE tool execution and can reject disallowed actions.")
+    print("=" * 60)
+
+    return 0
+
+
+def _build_bash_hook_command(deny_patterns: list[str]) -> str:
+    """Build a shell one-liner that checks Bash tool input against deny patterns."""
+    # The hook receives the tool input as JSON on stdin.
+    # We build a Python one-liner that checks the command field.
+    escaped = json.dumps(deny_patterns)
+    return (
+        f"python3 -c \""
+        f"import sys,json,re; "
+        f"data=json.load(sys.stdin); "
+        f"cmd=data.get('command',''); "
+        f"patterns={escaped}; "
+        f"matches=[p for p in patterns if p.replace('*','') in cmd]; "
+        f"sys.exit(2) if matches else sys.exit(0)"
+        f"\""
+    )
+
+
+def _build_write_hook_command(pii_patterns: list[str]) -> str:
+    """Build a shell one-liner that checks Write tool input for PII patterns."""
+    escaped = json.dumps(pii_patterns)
+    return (
+        f"python3 -c \""
+        f"import sys,json,re; "
+        f"data=json.load(sys.stdin); "
+        f"content=data.get('content',''); "
+        f"patterns={escaped}; "
+        f"matches=[p for p in patterns if re.search(p,content)]; "
+        f"sys.exit(2) if matches else sys.exit(0)"
+        f"\""
+    )
+
+
+def cmd_templates(workspace: Path, list_templates: bool, apply_name: str | None) -> int:
+    """Manage pre-built compliance templates."""
+    if list_templates or apply_name is None:
+        # List available templates
+        print("=" * 60)
+        print("OPENCLAW MARSHAL FULL — COMPLIANCE TEMPLATES")
+        print("=" * 60)
+        print()
+        print(f"  {'Name':<15} Description")
+        print(f"  {'----':<15} -----------")
+        for name, tmpl in sorted(COMPLIANCE_TEMPLATES.items()):
+            desc = tmpl.get("description", "")
+            print(f"  {name:<15} {desc}")
+        print()
+        print("Apply a template:")
+        print("  marshal templates --apply <name>")
+        print()
+
+        # Show current policy for comparison
+        policy = load_policy(workspace)
+        if policy:
+            print(f"Current policy: {policy.get('name', 'unnamed')} (v{policy.get('version', '?')})")
+        else:
+            print("No policy loaded. Applying a template will create one.")
+
+        print("=" * 60)
+        return 0
+
+    # Apply a template
+    if apply_name not in COMPLIANCE_TEMPLATES:
+        print(f"Unknown template: {apply_name}")
+        print(f"Available: {', '.join(sorted(COMPLIANCE_TEMPLATES.keys()))}")
+        return 1
+
+    template = COMPLIANCE_TEMPLATES[apply_name]
+    pp = policy_path(workspace)
+
+    if pp.exists():
+        # Back up existing policy
+        backup_name = f".marshal-policy.backup.{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json"
+        backup_path = workspace / backup_name
+        try:
+            shutil.copy2(pp, backup_path)
+            print(f"Existing policy backed up: {backup_name}")
+        except OSError as e:
+            print(f"WARNING: Could not back up existing policy: {e}")
+
+    # Write the template (strip the description field — it is not part of policy)
+    policy_data = {k: v for k, v in template.items() if k != "description"}
+    save_policy(workspace, policy_data)
+
+    print(f"Applied template: {apply_name}")
+    print(f"  {template.get('description', '')}")
+    print(f"  Policy file: {pp}")
+    print()
+    print("Run 'marshal audit' to check compliance against the new policy.")
+
+    # Log the action
+    log_dir = workspace / ".marshal"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "enforcement.log.json"
+
+    existing_log = []
+    if log_file.exists():
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                existing_log = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing_log = []
+
+    existing_log.append({
+        "action": "template_applied",
+        "template": apply_name,
+        "timestamp": now_iso(),
+    })
+    with open(log_file, "w", encoding="utf-8") as f:
+        json.dump(existing_log, f, indent=2)
+
+    return 0
+
+
+def cmdtect(workspace: Path) -> int:
+    """Full automated protection sweep: audit, enforce, quarantine, report."""
+    policy = load_policy(workspace)
+    if policy is None:
+        print("No policy found. Initializing default policy...")
+        save_policy(workspace, DEFAULT_POLICY)
+        policy = DEFAULT_POLICY
+        print(f"Default policy created: {policy_path(workspace)}")
+        print()
+
+    print("=" * 60)
+    print("OPENCLAW MARSHAL FULL — FULLTECT")
+    print("=" * 60)
+    print(f"Workspace: {workspace}")
+    print(f"Policy: {policy.get('name', 'unnamed')} (v{policy.get('version', '?')})")
+    print(f"Timestamp: {now_iso()}")
+    print()
+
+    # Step 1: Audit all skills
+    print("[1/4] Auditing all skills...")
+    skills = find_skills(workspace)
+    skills_dir = workspace / "skills"
+    all_findings = []
+    skill_findings_map = {}
+
+    for skill_dir in skills:
+        meta = parse_skill_metadata(skill_dir / "SKILL.md")
+        skill_name = meta["name"] or skill_dir.name
+
+        sf = []
+        sf.extend(check_command_safety(skill_dir, policy))
+        sf.extend(check_network_policy(skill_dir, policy))
+        sf.extend(check_configuration_security(skill_dir))
+
+        skill_findings_map[skill_dir] = (skill_name, sf)
+        all_findings.extend(sf)
+
+    print(f"  Audited {len(skills)} skill(s), {len(all_findings)} finding(s)")
+    print()
+
+    # Step 2: Enforce — quarantine critical violators
+    print("[2/4] Enforcing policy...")
+    quarantined_count = 0
+    enforcement_log = []
+
+    for skill_dir, (skill_name, sf) in skill_findings_map.items():
+        counts = severity_counts(sf)
+        if counts[SEVERITY_CRITICAL] > 0:
+            quarantine_dest = skills_dir / f"{QUARANTINE_PREFIX}{skill_dir.name}"
+            try:
+                skill_dir.rename(quarantine_dest)
+                print(f"  [QUARANTINED] {skill_name} — {counts[SEVERITY_CRITICAL]} critical violation(s)")
+                quarantined_count += 1
+                enforcement_log.append({
+                    "action": "quarantine",
+                    "skill": skill_name,
+                    "reason": f"{counts[SEVERITY_CRITICAL]} critical violation(s)",
+                    "timestamp": now_iso(),
+                })
+            except OSError as e:
+                print(f"  [ERROR] Failed to quarantine {skill_name}: {e}")
+
+    if quarantined_count == 0:
+        print("  No critical violations — no skills quarantined")
+    print()
+
+    # Step 3: Workspace checks
+    print("[3/4] Checking workspace compliance...")
+    ws_findings = []
+    ws_findings.extend(check_data_handling(workspace, policy))
+    ws_findings.extend(check_workspace_hygiene(workspace, policy))
+    all_findings.extend(ws_findings)
+
+    if ws_findings:
+        for f in ws_findings:
+            print(f"  [{f['severity']:8s}] {f['description']}")
+    else:
+        print("  All workspace requirements met")
+    print()
+
+    # Step 4: Summary report
+    print("[4/4] Generating summary...")
+    score = compute_compliance_score(all_findings)
+    counts = severity_counts(all_findings)
+
+    print()
+    print("=" * 60)
+    print("FULLTECTION SUMMARY")
+    print("=" * 60)
+    print(f"  Compliance Score: {score}%")
+    print(f"  Skills audited:   {len(skills)}")
+    print(f"  Skills quarantined: {quarantined_count}")
+    print(f"  Total findings:   {len(all_findings)}")
+    print(f"    Critical: {counts[SEVERITY_CRITICAL]}  High: {counts[SEVERITY_HIGH]}  "
+          f"Medium: {counts[SEVERITY_MEDIUM]}  Low: {counts[SEVERITY_LOW]}  "
+          f"Info: {counts[SEVERITY_INFO]}")
+    print()
+
+    if counts[SEVERITY_CRITICAL] == 0 and quarantined_count == 0:
+        print("  Workspace is protected. No critical threats detected.")
+    else:
+        print(f"  {quarantined_count} skill(s) quarantined due to critical violations.")
+        if counts[SEVERITY_HIGH] > 0 or counts[SEVERITY_MEDIUM] > 0:
+            print(f"  {counts[SEVERITY_HIGH] + counts[SEVERITY_MEDIUM]} non-critical finding(s) require review.")
+        print()
+        print("  Run 'marshal report' for full details.")
+        print("  Run 'marshal unquarantine <skill>' after investigation.")
+
+    print("=" * 60)
+
+    # Save enforcement log
+    if enforcement_log:
+        log_dir = workspace / ".marshal"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "enforcement.log.json"
+
+        existing_log = []
+        if log_file.exists():
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    existing_log = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                existing_log = []
+
+        existing_log.extend(enforcement_log)
+        with open(log_file, "w", encoding="utf-8") as f:
+            json.dump(existing_log, f, indent=2)
+
+    if quarantined_count > 0:
+        return 2
+    elif counts[SEVERITY_HIGH] > 0 or counts[SEVERITY_MEDIUM] > 0:
+        return 1
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -1001,17 +1775,23 @@ def cmd_status(workspace: Path) -> int:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OpenClaw Marshal — Compliance and policy enforcement"
+        description="OpenClaw Marshal— Full compliance and policy enforcement suite"
     )
     parser.add_argument(
         "command",
-        choices=["audit", "policy", "check", "report", "status"],
+        choices=[
+            "audit", "policy", "check", "report", "status",
+            "enforce", "quarantine", "unquarantine",
+            "hooks", "templates", "protect",
+        ],
         help="Command to run",
     )
-    parser.add_argument("skill", nargs="?", help="Skill name (for 'check' command)")
+    parser.add_argument("skill", nargs="?", help="Skill name (for check/quarantine/unquarantine)")
     parser.add_argument("--workspace", "-w", help="Workspace path")
     parser.add_argument("--init", action="store_true", help="Initialize default policy")
     parser.add_argument("--show", action="store_true", help="Show current policy")
+    parser.add_argument("--list", dest="list_templates", action="store_true", help="List available templates")
+    parser.add_argument("--apply", dest="apply_name", help="Apply a compliance template")
     args = parser.parse_args()
 
     workspace = resolve_workspace(args.workspace)
@@ -1037,15 +1817,32 @@ def main():
     elif args.command == "status":
         sys.exit(cmd_status(workspace))
 
-    elif args.command in ("enforce", "block", "remediate", "heartbeat", "template"):
-        print(f"'{args.command}' is a Pro feature.")
-        print("Upgrade to openclaw-marshal-pro for active enforcement:")
-        print("  enforce, block, remediate, heartbeat, template")
-        sys.exit(1)
+    elif args.command == "enforce":
+        sys.exit(cmd_enforce(workspace))
+
+    elif args.command == "quarantine":
+        if not args.skill:
+            print("Usage: marshal.py quarantine <skill> [--workspace PATH]")
+            sys.exit(1)
+        sys.exit(cmd_quarantine(workspace, args.skill))
+
+    elif args.command == "unquarantine":
+        if not args.skill:
+            print("Usage: marshal.py unquarantine <skill> [--workspace PATH]")
+            sys.exit(1)
+        sys.exit(cmd_unquarantine(workspace, args.skill))
+
+    elif args.command == "hooks":
+        sys.exit(cmd_hooks(workspace))
+
+    elif args.command == "templates":
+        sys.exit(cmd_templates(workspace, args.list_templates, args.apply_name))
+
+    elif args.command == "protect":
+        sys.exit(cmdtect(workspace))
 
     else:
         print(f"Unknown command: {args.command}")
-        print("Commands: audit, policy, check, report, status")
         sys.exit(1)
 
 

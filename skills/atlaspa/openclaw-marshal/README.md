@@ -4,7 +4,6 @@ Free compliance and policy enforcement for [OpenClaw](https://github.com/opencla
 
 Define security policies for agent workspaces, audit installed skills against those policies, and generate audit-ready compliance reports.
 
-**Want automated countermeasures?** Upgrade to Pro — hook-based blocking, auto-remediation, compliance templates, and team policy sharing. [Get Pro access](https://github.com/sponsors/AtlasPA).
 
 ## The Problem
 
@@ -130,9 +129,7 @@ Deductions are weighted by severity: CRITICAL (25pts), HIGH (15pts), MEDIUM (8pt
 | 1 | Review needed (medium/high findings) |
 | 2 | Critical violations detected |
 
-## Free vs Pro
 
-| Feature | Free | [Pro](https://github.com/sponsors/AtlasPA) |
 |---------|------|-----|
 | Policy definition | Yes | Yes |
 | Compliance audit | Yes | Yes |
