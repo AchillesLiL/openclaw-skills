@@ -1,5 +1,6 @@
 ---
 name: hefestoai-auditor
+version: "1.2.0"
 description: "AI-powered code analysis with HefestoAI. Run security audits, detect code smells, analyze complexity, and get ML-enhanced suggestions across 17 languages. Use when a user asks to analyze code, run a security audit, check code quality, or find vulnerabilities."
 metadata:
   {
@@ -30,22 +31,74 @@ AI-powered code quality guardian. Analyzes code for security vulnerabilities, co
 ### Run a full audit
 
 ```bash
-source ~/.hefesto_env 2>/dev/null
-hefesto analyze <path> --severity HIGH
+# IMPORTANTE: Cargar environment primero para activar licencia
+source /home/user/.hefesto_env 2>/dev/null
+hefesto analyze /ruta/absoluta/al/proyecto --severity HIGH --exclude venv,node_modules,.git
 ```
 
-### Run audit on specific severity
+### Severity levels
 
 ```bash
-hefesto analyze <path> --severity CRITICAL
-hefesto analyze <path> --severity MEDIUM
+hefesto analyze /path/to/project --severity CRITICAL   # Solo criticos
+hefesto analyze /path/to/project --severity HIGH        # High y Critical
+hefesto analyze /path/to/project --severity MEDIUM      # Medium, High, Critical
+hefesto analyze /path/to/project --severity LOW         # Todo
 ```
 
-### Check HefestoAI status
+### Output formats
+
+```bash
+hefesto analyze /path/to/project --output text          # Default, terminal
+hefesto analyze /path/to/project --output json          # JSON estructurado
+hefesto analyze /path/to/project --output html --save-html report.html  # Reporte HTML
+hefesto analyze /path/to/project --quiet                # Solo resumen
+```
+
+### Check status and version
 
 ```bash
 hefesto status
+hefesto --version
 ```
+
+
+## Recommended: Wrapper Script
+
+For reliable results, create a wrapper script that always loads your license:
+
+```bash
+#!/bin/bash
+# Save as /usr/local/bin/hefesto (replaces direct binary)
+source /path/to/.hefesto_env 2>/dev/null
+exec /path/to/venv/bin/hefesto "$@"
+```
+
+This ensures your license tier is always active, regardless of how hefesto is called.
+
+### Pre-built audit scripts
+
+```bash
+# Save as ~/hefesto_tools/run_audit.sh
+#!/bin/bash
+SEVERITY="${1:-HIGH}"
+TARGET="${2:-/path/to/your/project}"
+source /path/to/.hefesto_env 2>/dev/null
+exec hefesto analyze "$TARGET" --severity "$SEVERITY" --exclude venv,node_modules,.git
+```
+
+Usage:
+```bash
+bash ~/hefesto_tools/run_audit.sh              # HIGH severity, default project
+bash ~/hefesto_tools/run_audit.sh CRITICAL     # CRITICAL only
+bash ~/hefesto_tools/run_audit.sh MEDIUM /other/project  # Custom
+```
+
+## Important Notes
+
+- **SIEMPRE** usa rutas absolutas, nunca `." ni rutas relativas
+- **SIEMPRE** carga el environment (`source /home/user/.hefesto_env`) antes de ejecutar para activar tu licencia
+- **SIEMPRE** excluye `venv,node_modules,.git` para evitar falsos positivos de dependencias
+- **Reporta SOLO** lo que hefesto devuelve en su output. No inventes ni agregues issues adicionales.
 
 ## Supported Languages (17)
 
@@ -59,20 +112,17 @@ hefesto status
 - Hardcoded secrets and API keys
 - Command injection risks
 - Insecure configurations
-- Missing authentication checks
 
 ### Code Quality
 - Cyclomatic complexity (functions too complex)
 - Deep nesting (>4 levels)
 - Long functions (>50 lines)
-- Duplicate code patterns
-- Anti-patterns per language
+- Code smells and anti-patterns
 
 ### DevOps Issues
 - Dockerfile: missing USER, no HEALTHCHECK, running as root
 - Shell: missing `set -euo pipefail`, unquoted variables
 - Terraform: missing tags, hardcoded values
-- YAML/JSON: schema violations
 
 ## Interpreting Results
 
@@ -88,50 +138,54 @@ HefestoAI outputs results in this format:
 ```
 
 ### Severity Guide
-- **CRITICAL**: Security vulnerabilities, complexity >20. Fix immediately.
-- **HIGH**: Code smells, complexity 10-20. Fix in current sprint.
+- **CRITICAL**: Cyclomatic complexity >20. Fix immediately.
+- **HIGH**: Complexity 10-20, deep nesting, SQL injection risks. Fix in current sprint.
 - **MEDIUM**: Style issues, minor improvements. Fix when convenient.
 - **LOW**: Informational, best practice suggestions.
 
-### Summary Section
-
-```
-📊 Summary:
-   Files analyzed: <count>
-   Issues found: <total>
-   Critical: <count>
-   High: <count>
-   Medium: <count>
-   Low: <count>
-```
+### Issue Types
+- `VERY_HIGH_COMPLEXITY`: Cyclomatic complexity >20
+- `HIGH_COMPLEXITY`: Cyclomatic complexity 10-20
+- `DEEP_NESTING`: Nesting level exceeds threshold (default: 4)
+- `SQL_INJECTION_RISK`: Potential SQL injection via string concatenation
+- `LONG_FUNCTION`: Function exceeds line threshold
 
 ## Pro Tips
 
-### Exclude virtual environments
-Always exclude venv/node_modules to avoid false positives from dependencies:
+### Exclude directories
+Always exclude dependencies to avoid false positives:
 ```bash
-hefesto analyze <path> --severity HIGH --exclude venv,node_modules,.git
+hefesto analyze /path/to/project --severity HIGH --exclude venv,node_modules,.git
+```
+
+### CI/CD gate
+Fail the build if issues are found:
+```bash
+hefesto analyze /path/to/project --fail-on HIGH --exclude venv
 ```
 
 ### Install pre-push hook
-Automatically audit before pushing to remote:
 ```bash
 hefesto install-hook
 ```
 
-### Run REST API server
-Serve analysis via HTTP API (8 endpoints):
+### Limit output
 ```bash
-hefesto serve --port 8000
+hefesto analyze /path/to/project --max-issues 10
+```
+
+### Exclude specific issue types
+```bash
+hefesto analyze /path/to/project --exclude-types VERY_HIGH_COMPLEXITY,LONG_FUNCTION
 ```
 
 ## Licensing Tiers
 
 | Tier | Price | Key Features |
 |------|-------|-------------|
-| **FREE** | $0/mo | Static analysis, 17 languages, pre-push hooks |
-| **PRO** | $8/mo (launch) | ML semantic analysis, REST API, BigQuery, deep security |
-| **OMEGA** | $19/mo (launch) | IRIS monitoring, auto-correlation, real-time alerts |
+| **FREE** | USD0/mo | Static analysis, 17 languages, pre-push hooks |
+| **PRO** | USD8/mo (launch) | ML semantic analysis, REST API, BigQuery, custom rules |
+| **OMEGA** | USD19/mo (launch) | IRIS monitoring, auto-correlation, real-time alerts, team dashboard |
 
 All paid tiers include a **14-day free trial**.
 
@@ -151,4 +205,4 @@ Created by **Narapa LLC** (Miami, FL) — Arturo Velasquez (@artvepa)
 GitHub: https://github.com/artvepa80/Agents-Hefesto
 Support: support@narapallc.com
 
-> "El código limpio es código seguro" 🛡️
+> "El codigo limpio es codigo seguro"
