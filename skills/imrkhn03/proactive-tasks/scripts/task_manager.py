@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Proactive Task Manager
+Proactive Task Manager v1.2.0
 Enables AI agents to manage goals and work autonomously on tasks.
+Includes Phase 2: WAL, SESSION-STATE, working buffer, self-healing.
 """
 
 import json
@@ -16,9 +17,15 @@ import uuid
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
 DATA_FILE = DATA_DIR / "tasks.json"
+PROJECT_ROOT = SCRIPT_DIR.parent
+WORKSPACE_ROOT = PROJECT_ROOT.parent.parent
+MEMORY_DIR = WORKSPACE_ROOT / "memory"
+SESSION_STATE_FILE = WORKSPACE_ROOT / "SESSION-STATE.md"
+WORKING_BUFFER_FILE = MEMORY_DIR / "working-buffer.md"
 
-# Ensure data directory exists
+# Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
+MEMORY_DIR.mkdir(exist_ok=True)
 
 def load_data() -> Dict[str, Any]:
     """Load tasks data from JSON file."""
@@ -258,6 +265,316 @@ def status(args) -> None:
     
     print(json.dumps(result, indent=2))
 
+# ==================== PHASE 2: WAL, SESSION-STATE, HEALTH-CHECK ====================
+
+def log_to_wal(event_type: str, content: Dict[str, Any]) -> None:
+    """Write-Ahead Logging: Log critical changes BEFORE persisting data."""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    wal_file = MEMORY_DIR / f"WAL-{today}.log"
+    
+    wal_entry = {
+        "timestamp": timestamp,
+        "event_type": event_type,
+        "content": content
+    }
+    
+    with open(wal_file, 'a') as f:
+        f.write(json.dumps(wal_entry) + "\n")
+
+
+def append_to_buffer(event_type: str, details: str) -> None:
+    """Append to working buffer - captures all changes during danger zone."""
+    timestamp = datetime.now(timezone.utc).isoformat()
+    entry = f"- {event_type} ({timestamp}): {details}\n"
+    
+    with open(WORKING_BUFFER_FILE, 'a') as f:
+        f.write(entry)
+
+
+def update_session_state(task: Dict, goal: Dict, action: str = "") -> None:
+    """Update SESSION-STATE.md with current task context."""
+    progress = task.get("progress", 0)
+    estimate = task.get("estimate_minutes", 0)
+    actual = task.get("actual_minutes", 0)
+    status = task.get("status", "pending")
+    
+    velocity = ""
+    if estimate > 0:
+        ratio = actual / estimate
+        if ratio < 1:
+            velocity = f"{int((1 - ratio) * 100)}% faster than estimate"
+        elif ratio > 1:
+            velocity = f"{int((ratio - 1) * 100)}% slower than estimate"
+        else:
+            velocity = "on pace with estimate"
+    
+    content = f"""# SESSION-STATE.md - Active Working Memory
+Last updated: {datetime.now(timezone.utc).isoformat()}
+
+## Current Task
+- ID: {task.get("id", "unknown")}
+- Title: {task.get("title", "N/A")}
+- Status: {status}
+- Progress: {progress}%
+- Estimated: {estimate} min
+- Actual logged: {actual} min {f"({velocity})" if velocity else ""}
+
+## Goal Context
+- ID: {goal.get("id", "unknown")}
+- Title: {goal.get("title", "N/A")}
+- Priority: {goal.get("priority", "medium")}
+
+## Task Details
+- Created: {task.get("created_at", "N/A")}
+- Updated: {task.get("updated_at", "N/A")}
+- Notes: {task.get("notes", "None")}
+
+## Blockers
+- {task.get("blocked_reason", "None")}
+
+## Next Action
+{action or "Continue with current task or mark as complete"}
+"""
+    
+    with open(SESSION_STATE_FILE, 'w') as f:
+        f.write(content)
+
+
+def mark_progress(args) -> None:
+    """Mark task progress (0-100%) - Phase 2 enhanced."""
+    data = load_data()
+    task = find_task_by_id(data, args.task_id)
+    
+    if not task:
+        print(json.dumps({"success": False, "error": f"Task not found: {args.task_id}"}), file=sys.stderr)
+        sys.exit(1)
+    
+    old_progress = task.get("progress", 0)
+    
+    # WAL FIRST
+    log_to_wal("PROGRESS_CHANGE", {
+        "task_id": args.task_id,
+        "old_progress": old_progress,
+        "new_progress": args.progress,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    task["progress"] = args.progress
+    task["updated_at"] = datetime.now(timezone.utc).isoformat() + "Z"
+    
+    if args.notes:
+        if task.get("notes"):
+            task["notes"] += "\n" + args.notes
+        else:
+            task["notes"] = args.notes
+    
+    if args.progress >= 100 and task.get("status") != "completed":
+        task["status"] = "in_progress"
+    elif args.progress > 0 and task.get("status") == "pending":
+        task["status"] = "in_progress"
+    
+    save_data(data)
+    
+    goal = next((g for g in data["goals"] if g["id"] == task.get("goal_id")), None)
+    if goal:
+        update_session_state(task, goal, f"Progress marked: {old_progress}% → {args.progress}%")
+    
+    append_to_buffer("PROGRESS", f"{args.task_id}: {old_progress}% → {args.progress}%")
+    
+    result = {
+        "success": True,
+        "task": task,
+        "progress_change": f"{old_progress}% → {args.progress}%"
+    }
+    print(json.dumps(result, indent=2))
+
+
+def log_time(args) -> None:
+    """Log time spent on a task - Phase 2 enhanced."""
+    data = load_data()
+    task = find_task_by_id(data, args.task_id)
+    
+    if not task:
+        print(json.dumps({"success": False, "error": f"Task not found: {args.task_id}"}), file=sys.stderr)
+        sys.exit(1)
+    
+    old_actual = task.get("actual_minutes", 0)
+    new_actual = old_actual + args.minutes
+    
+    # WAL FIRST
+    log_to_wal("TIME_LOG", {
+        "task_id": args.task_id,
+        "minutes_logged": args.minutes,
+        "old_total": old_actual,
+        "new_total": new_actual,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    task["actual_minutes"] = new_actual
+    task["updated_at"] = datetime.now(timezone.utc).isoformat() + "Z"
+    
+    if args.notes:
+        if task.get("notes"):
+            task["notes"] += "\n" + args.notes
+        else:
+            task["notes"] = args.notes
+    
+    if task.get("status") == "pending" and new_actual > 0:
+        task["status"] = "in_progress"
+    
+    save_data(data)
+    
+    goal = next((g for g in data["goals"] if g["id"] == task.get("goal_id")), None)
+    if goal:
+        update_session_state(task, goal, f"Logged {args.minutes} min (total: {new_actual} min)")
+    
+    append_to_buffer("TIME_LOG", f"{args.task_id}: +{args.minutes} min (total: {new_actual} min)")
+    
+    estimate = task.get("estimate_minutes", 0)
+    velocity = ""
+    if estimate > 0:
+        ratio = new_actual / estimate
+        if ratio < 1:
+            velocity = f"{int((1 - ratio) * 100)}% faster than estimate"
+        elif ratio > 1:
+            velocity = f"{int((ratio - 1) * 100)}% slower than estimate"
+    
+    result = {
+        "success": True,
+        "task": task,
+        "time_logged": args.minutes,
+        "total_actual": new_actual,
+        "estimate": estimate,
+        "velocity": velocity
+    }
+    print(json.dumps(result, indent=2))
+
+
+def mark_blocked(args) -> None:
+    """Mark task as blocked - Phase 2 enhanced."""
+    data = load_data()
+    task = find_task_by_id(data, args.task_id)
+    
+    if not task:
+        print(json.dumps({"success": False, "error": f"Task not found: {args.task_id}"}), file=sys.stderr)
+        sys.exit(1)
+    
+    old_status = task.get("status", "pending")
+    
+    # WAL FIRST
+    log_to_wal("STATUS_CHANGE", {
+        "task_id": args.task_id,
+        "old_status": old_status,
+        "new_status": "blocked",
+        "reason": args.reason,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    task["status"] = "blocked"
+    task["blocked_reason"] = args.reason
+    task["updated_at"] = datetime.now(timezone.utc).isoformat() + "Z"
+    
+    save_data(data)
+    
+    goal = next((g for g in data["goals"] if g["id"] == task.get("goal_id")), None)
+    if goal:
+        update_session_state(task, goal, f"BLOCKED: {args.reason}")
+    
+    append_to_buffer("BLOCKED", f"{args.task_id}: {args.reason}")
+    
+    result = {
+        "success": True,
+        "task": task,
+        "status_change": f"{old_status} → blocked",
+        "reason": args.reason
+    }
+    print(json.dumps(result, indent=2))
+
+
+def health_check(args) -> None:
+    """Health check: detect and report broken task states."""
+    data = load_data()
+    issues = []
+    fixes = []
+    
+    for task in data["tasks"]:
+        task_id = task.get("id", "unknown")
+        
+        if task.get("recurring") and not task.get("goal_id"):
+            issues.append(f"Orphaned recurring task: {task_id}")
+            task["recurring"] = None
+            fixes.append(f"Removed recurring flag from {task_id}")
+        
+        if task.get("status") == "completed" and task.get("progress", 100) < 100:
+            issues.append(f"Impossible state: {task_id} completed but progress={task.get('progress')}%")
+            task["progress"] = 100
+            fixes.append(f"Set progress=100% for completed task {task_id}")
+        
+        if task.get("status") == "completed" and not task.get("completed_at"):
+            issues.append(f"Inconsistent completion: {task_id} status=completed but no completed_at")
+            task["completed_at"] = datetime.now(timezone.utc).isoformat() + "Z"
+            fixes.append(f"Added completed_at timestamp to {task_id}")
+        
+        if task.get("actual_minutes", 0) > task.get("estimate_minutes", 1) * 10:
+            ratio = task.get("actual_minutes", 0) / task.get("estimate_minutes", 1)
+            issues.append(f"Time anomaly: {task_id} actual={task.get('actual_minutes')}m vs estimate={task.get('estimate_minutes')}m ({ratio:.1f}x)")
+        
+        if task.get("status") == "completed":
+            completed_at = task.get("completed_at", "")
+            if completed_at > datetime.now(timezone.utc).isoformat():
+                issues.append(f"Bad date: {task_id} completed_at={completed_at} is in future")
+                task["completed_at"] = datetime.now(timezone.utc).isoformat() + "Z"
+                fixes.append(f"Reset completed_at for {task_id}")
+    
+    if fixes:
+        save_data(data)
+    
+    log_to_wal("HEALTH_CHECK", {
+        "issues_found": len(issues),
+        "auto_fixes_applied": len(fixes),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    result = {
+        "success": True,
+        "health_status": "healthy" if not issues else "issues_found",
+        "issues": issues,
+        "auto_fixes": fixes,
+        "summary": f"Found {len(issues)} issues, auto-fixed {len(fixes)}"
+    }
+    print(json.dumps(result, indent=2))
+
+
+def flush_buffer(args) -> None:
+    """Flush working buffer to daily memory file."""
+    if not WORKING_BUFFER_FILE.exists():
+        result = {
+            "success": True,
+            "message": "Buffer is empty, nothing to flush"
+        }
+        print(json.dumps(result, indent=2))
+        return
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    daily_file = MEMORY_DIR / f"{today}.md"
+    
+    with open(WORKING_BUFFER_FILE, 'r') as f:
+        buffer_content = f.read()
+    
+    section = f"\n## Task Updates\n{buffer_content}\n"
+    with open(daily_file, 'a') as f:
+        f.write(section)
+    
+    WORKING_BUFFER_FILE.write_text("")
+    
+    result = {
+        "success": True,
+        "message": f"Buffer flushed to {daily_file}",
+        "lines_flushed": len(buffer_content.split('\n'))
+    }
+    print(json.dumps(result, indent=2))
+
 def main():
     parser = argparse.ArgumentParser(description="Proactive Task Manager")
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
@@ -308,6 +625,31 @@ def main():
     # status
     parser_status = subparsers.add_parser("status", help="Show overall status")
     
+    # Phase 2 commands
+    
+    # mark-progress
+    parser_mark_progress = subparsers.add_parser("mark-progress", help="Mark task progress (0-100%)")
+    parser_mark_progress.add_argument("task_id", help="Task ID")
+    parser_mark_progress.add_argument("progress", type=int, help="Progress percentage (0-100)")
+    parser_mark_progress.add_argument("--notes", help="Optional notes")
+    
+    # log-time
+    parser_log_time = subparsers.add_parser("log-time", help="Log time spent on task")
+    parser_log_time.add_argument("task_id", help="Task ID")
+    parser_log_time.add_argument("minutes", type=int, help="Minutes spent")
+    parser_log_time.add_argument("--notes", help="Optional notes")
+    
+    # mark-blocked
+    parser_mark_blocked = subparsers.add_parser("mark-blocked", help="Mark task as blocked")
+    parser_mark_blocked.add_argument("task_id", help="Task ID")
+    parser_mark_blocked.add_argument("reason", help="Reason for blocking")
+    
+    # health-check
+    parser_health_check = subparsers.add_parser("health-check", help="Check and fix broken task states")
+    
+    # flush-buffer
+    parser_flush_buffer = subparsers.add_parser("flush-buffer", help="Flush working buffer to daily memory")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -323,7 +665,12 @@ def main():
         "update-task": update_task,
         "list-goals": list_goals,
         "list-tasks": list_tasks,
-        "status": status
+        "status": status,
+        "mark-progress": mark_progress,
+        "log-time": log_time,
+        "mark-blocked": mark_blocked,
+        "health-check": health_check,
+        "flush-buffer": flush_buffer
     }
     
     commands[args.command](args)
