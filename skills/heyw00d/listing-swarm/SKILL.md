@@ -1,10 +1,24 @@
 ---
 name: listing-swarm
 description: Submit your AI product to 70+ AI directories. Agent automates form filling, captcha solving (BYOK 2captcha), and email verification (BYOK IMAP). Save 10+ hours of manual submissions. User provides their own API keys - no credentials stored in skill.
-version: 1.0.2
+version: 1.0.3
 author: LinkSwarm
 website: https://linkswarm.ai/skill/
 security: BYOK
+metadata:
+  openclaw:
+    requires:
+      env:
+        - CAPTCHA_API_KEY
+        - CAPTCHA_SERVICE
+        - IMAP_USER
+        - IMAP_PASSWORD
+        - IMAP_HOST
+      bins:
+        - node
+    primaryEnv: CAPTCHA_API_KEY
+    user-invocable: true
+    disable-model-invocation: true
 ---
 
 # Listing Swarm 🐝

@@ -3,11 +3,16 @@
   "slug": "listing-swarm",
   "displayName": "Listing Swarm",
   "latest": {
-    "version": "1.0.2",
-    "publishedAt": 1770781329187,
-    "commit": "https://github.com/openclaw/skills/commit/7daa8f1e5d471f7a9553643d42cfac4da7071d8b"
+    "version": "1.0.3",
+    "publishedAt": 1770846019225,
+    "commit": null
   },
   "history": [
+    {
+      "version": "1.0.2",
+      "publishedAt": 1770781329187,
+      "commit": "https://github.com/openclaw/skills/commit/7daa8f1e5d471f7a9553643d42cfac4da7071d8b"
+    },
     {
       "version": "1.0.1",
       "publishedAt": 1770682356195,
