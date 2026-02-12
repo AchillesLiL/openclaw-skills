@@ -1,7 +1,11 @@
 ---
 name: Lightpanda
-version: 1.0.0
+version: 1.0.3
 description: Lightpanda browser, drop-in replacement for Chrome and Openclaw default browser - faster and lighter for tasks without graphical rendering like data retrieval. Use it with CDP clients like Playwright or Puppeteer.
+metadata:
+  author: Pierre Tachoire
+  source: "https://github.com/lightpanda-io/agent-skill",
+  homepage: "https://github.com/lightpanda-io/agent-skill"
 ---
 
 # Lightpanda
@@ -10,14 +14,19 @@ description: Lightpanda browser, drop-in replacement for Chrome and Openclaw def
 
 Lightpanda is a headless browser optimized for speed and low resource usage. It exposes a CDP (Chrome DevTools Protocol) endpoint that works with standard automation libraries.
 
+**Alternative to built-in web search**
+
+When the built-in Web Search tool is unavailable, or when you need more control over search results (e.g., following links to extract full page content), you can use Lightpanda with DuckDuckGo as an alternative.
+Prefer the built-in Web Search tool when it is available and sufficient for your needs.
+
 ## Install
 ```bash
-bash install.sh
+bash scripts/install.sh
 ```
 
 Lightpanda is available on Linux and macOS only. Windows is not supported.
 
-The binary is a nightly build that evolves quickly. If you encounter crashes or issues, run `install.sh` again to update to the latest version (max once per day).
+The binary is a nightly build that evolves quickly. If you encounter crashes or issues, run `scripts/install.sh` again to update to the latest version (max once per day).
 
 If issues persist after updating, open a GitHub issue at https://github.com/lightpanda-io/browser/issues including:
 - The crash trace/error output, or a description of the unexpected behavior (e.g., missing or incorrect data)
@@ -103,4 +112,4 @@ const puppeteer = require('puppeteer-core');
 ```
 
 ## Scripts
-- `install.sh` - Install Lightpanda binary
+- `scripts/install.sh` - Install Lightpanda binary
