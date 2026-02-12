@@ -2,6 +2,7 @@
 """Tests for cron_builder."""
 
 import os
+import re
 import sys
 import unittest
 
@@ -80,8 +81,11 @@ class TestFrequencyParsing(unittest.TestCase):
         # "weekly check-in on Mondays" should resolve to monday, not weekly
         self.assertEqual(_parse_frequency('weekly check-in on Mondays'), ('monday', None))
 
-    def test_default_daily(self):
-        self.assertEqual(_parse_frequency('reminder at 8am'), ('daily', None))
+    def test_default_no_keyword(self):
+        self.assertEqual(_parse_frequency('reminder at 8am'), ('default', None))
+
+    def test_default_no_keyword_no_time(self):
+        self.assertEqual(_parse_frequency('remind me about something'), ('default', None))
 
 
 class TestChannelDetection(unittest.TestCase):
@@ -175,19 +179,101 @@ class TestEdgeCases(unittest.TestCase):
         parsed = parse('Send me a quote on discord at 8am')
         self.assertEqual(parsed['channel'], 'discord')
 
-    def test_ikigai_message(self):
-        parsed = parse('Create a daily Ikigai reminder at 8:45am')
-        self.assertIn('Ikigai', parsed['message'])
+    def test_message_passthrough_drink_water(self):
+        parsed = parse('remind me to drink water every 2 hours')
+        self.assertEqual(parsed['message'], 'drink water')
 
-    def test_water_message(self):
-        parsed = parse('Remind me to drink water every 2 hours')
-        self.assertIn('hydrated', parsed['message'])
+    def test_message_passthrough_strip_time(self):
+        parsed = parse('at 3pm take the dog out')
+        self.assertEqual(parsed['message'], 'take the dog out')
+
+    def test_message_passthrough_strip_all(self):
+        parsed = parse('daily standup on slack at 9am')
+        self.assertEqual(parsed['message'], 'standup')
+
+    def test_message_fallback_reminder(self):
+        parsed = parse('at 3pm')
+        self.assertEqual(parsed['message'], 'Reminder')
 
     def test_command_has_all_required_flags(self):
         parsed = parse('Daily reminder at 8am on telegram')
         cmd = build_command(parsed)
         for flag in ['--session isolated', '--deliver', '--channel', '--to', '--name']:
             self.assertIn(flag, cmd, f'Missing required flag: {flag}')
+
+
+class TestAtClockOneShot(unittest.TestCase):
+    def test_at_3pm_is_one_shot(self):
+        parsed = parse('at 3pm')
+        self.assertTrue(parsed['one_shot'])
+        self.assertEqual(parsed['freq_type'], 'at_clock')
+        cmd = build_command(parsed)
+        self.assertIn('--at', cmd)
+        self.assertIn('--delete-after-run', cmd)
+        self.assertNotIn('--cron', cmd)
+        # Verify ISO timestamp format in --at value
+        self.assertRegex(cmd, r'--at \S*T15:00:00')
+
+    def test_at_noon_is_one_shot(self):
+        parsed = parse('at noon')
+        self.assertTrue(parsed['one_shot'])
+        self.assertEqual(parsed['freq_type'], 'at_clock')
+        cmd = build_command(parsed)
+        self.assertIn('--at', cmd)
+        self.assertIn('--delete-after-run', cmd)
+        self.assertRegex(cmd, r'--at \S*T12:00:00')
+
+    def test_daily_at_3pm_still_repeating(self):
+        parsed = parse('daily at 3pm')
+        self.assertFalse(parsed['one_shot'])
+        self.assertEqual(parsed['freq_type'], 'daily')
+        cmd = build_command(parsed)
+        self.assertIn('--cron "0 15 * * *"', cmd)
+        self.assertNotIn('--delete-after-run', cmd)
+
+    def test_no_time_no_keyword_falls_back_to_daily(self):
+        parsed = parse('remind me about something')
+        self.assertEqual(parsed['freq_type'], 'daily')
+        self.assertFalse(parsed['one_shot'])
+
+
+class TestShellEscaping(unittest.TestCase):
+    def test_name_with_semicolon(self):
+        parsed = parse('daily reminder at 8am')
+        parsed['name'] = 'test; rm -rf /'
+        cmd = build_command(parsed)
+        # shlex.quote wraps in single quotes — semicolon is safely quoted
+        self.assertIn("'test; rm -rf /'", cmd)
+        # Verify it's passed as --name value (not bare)
+        self.assertIn("--name 'test; rm -rf /'", cmd)
+
+    def test_name_with_single_quote(self):
+        parsed = parse('daily reminder at 8am')
+        parsed['name'] = "it's a test"
+        cmd = build_command(parsed)
+        # shlex.quote escapes single quotes
+        self.assertNotIn("it's", cmd.replace("it'\\''s", ''))
+
+    def test_destination_with_special_chars(self):
+        parsed = parse('daily reminder at 8am')
+        parsed['destination'] = '$(whoami)'
+        cmd = build_command(parsed)
+        # Must be quoted, not bare
+        self.assertIn("'$(whoami)'", cmd)
+
+    def test_channel_is_quoted(self):
+        parsed = parse('daily reminder at 8am on telegram')
+        cmd = build_command(parsed)
+        # Channel value should be shell-quoted
+        self.assertRegex(cmd, r'--channel \S+')
+
+    def test_message_is_quoted(self):
+        parsed = parse('daily reminder at 8am')
+        cmd = build_command(parsed)
+        self.assertIn('--message', cmd)
+        # Message should be a single shell token after --message
+        # (shlex.quote wraps in single quotes)
+        self.assertRegex(cmd, r"--message '")
 
 
 if __name__ == '__main__':

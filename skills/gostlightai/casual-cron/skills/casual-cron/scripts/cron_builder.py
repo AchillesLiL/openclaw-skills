@@ -9,7 +9,10 @@ Output: JSON with success, parsed, command fields.
 import json
 import os
 import re
+import shlex
 import sys
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 # --- Pattern dictionaries ---
 
@@ -117,7 +120,7 @@ def _parse_frequency(text):
             if freq_type in ('every_n_hours', 'every_n_minutes', 'in_minutes'):
                 return (freq_type, int(groups[0]))
             return (freq_type, None)
-    return ('daily', None)
+    return ('default', None)
 
 
 def _parse_channel(text):
@@ -186,7 +189,7 @@ def _generate_name(text, freq_type):
 
 def _is_one_shot(freq_type):
     """Determine if the schedule is one-shot (not repeating)."""
-    return freq_type == 'in_minutes'
+    return freq_type in ('in_minutes', 'at_clock')
 
 
 def parse(text):
@@ -197,6 +200,14 @@ def parse(text):
     """
     time = _parse_time(text)
     freq_type, freq_value = _parse_frequency(text)
+
+    # Resolve the 'default' freq_type (no explicit frequency keyword matched)
+    if freq_type == 'default':
+        if time is not None:
+            freq_type = 'at_clock'
+        else:
+            freq_type = 'daily'
+
     channel = _parse_channel(text)
     destination = _parse_destination(text, channel)
     message = _parse_message(text)
@@ -229,15 +240,25 @@ def build_command(parsed):
     Returns the command string. Raises ValueError on missing required fields.
     """
     parts = ['openclaw cron add']
-    parts.append(f'--name "{parsed["name"]}"')
+    parts.append(f'--name {shlex.quote(parsed["name"])}')
 
     freq = parsed['freq_type']
     fval = parsed['freq_value']
     time = parsed.get('time')
 
-    if parsed['one_shot']:
-        # in_minutes -> --at "<N>m"
+    if freq == 'in_minutes':
         parts.append(f'--at "{fval}m"')
+    elif freq == 'at_clock':
+        # Build ISO timestamp for next occurrence of this clock time
+        tz = ZoneInfo('America/New_York')
+        now = datetime.now(tz)
+        target = now.replace(
+            hour=time['hour'], minute=time['minute'], second=0, microsecond=0,
+        )
+        if target <= now:
+            target += timedelta(days=1)
+        iso = target.isoformat()
+        parts.append(f'--at {shlex.quote(iso)}')
     elif freq == 'every_n_hours':
         parts.append(f'--every "{fval}h"')
     elif freq == 'every_n_minutes':
@@ -264,10 +285,10 @@ def build_command(parsed):
         parts.append(f'--cron "{cron}" --tz "America/New_York"')
 
     parts.append('--session isolated')
-    parts.append(f'--message "Output exactly: {parsed["message"]}"')
+    parts.append(f'--message {shlex.quote("Output exactly: " + parsed["message"])}')
     parts.append('--deliver')
-    parts.append(f'--channel {parsed["channel"]}')
-    parts.append(f'--to {parsed["destination"]}')
+    parts.append(f'--channel {shlex.quote(parsed["channel"])}')
+    parts.append(f'--to {shlex.quote(parsed["destination"])}')
 
     if parsed['one_shot']:
         parts.append('--delete-after-run')

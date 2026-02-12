@@ -9,7 +9,10 @@ Output: JSON with success, parsed, command fields.
 import json
 import os
 import re
+import shlex
 import sys
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 # --- Pattern dictionaries ---
 
@@ -56,17 +59,6 @@ CHANNEL_PATTERNS = [
     (r'\bon\s*signal\b|signal', 'signal'),
 ]
 
-PURPOSE_MESSAGES = [
-    (r'ikigai', 'Ikigai Journal\n\n1. Purpose - What gives you energy today?\n2. Food - Hara Hachi Bu goal?\n3. Movement - One move today?\n4. Connection - Who will you connect with?\n5. Gratitude - One thing grateful for?'),
-    (r'water|hydrat', 'Time to drink water! Stay hydrated!'),
-    (r'exercise|workout|movement', 'Time to move! Even a 10-minute walk makes a difference.'),
-    (r'meditat|mindful', 'Take a moment to breathe. 5 minutes of stillness.'),
-    (r'morning', 'Good morning! Time for your daily check-in.'),
-    (r'evening|night', 'Evening check-in! How was your day?'),
-    (r'weekly|week', 'Weekly check-in!\n\n1. What went well this week?\n2. What could improve?\n3. Goal for next week?'),
-]
-
-DEFAULT_MESSAGE = 'Your scheduled reminder is here!'
 
 
 def _parse_time(text):
@@ -117,7 +109,7 @@ def _parse_frequency(text):
             if freq_type in ('every_n_hours', 'every_n_minutes', 'in_minutes'):
                 return (freq_type, int(groups[0]))
             return (freq_type, None)
-    return ('daily', None)
+    return ('default', None)
 
 
 def _parse_channel(text):
@@ -148,12 +140,32 @@ def _parse_destination(text, channel):
 
 
 def _parse_message(text):
-    """Determine purpose-appropriate message."""
-    lower = text.lower()
-    for pattern, msg in PURPOSE_MESSAGES:
-        if re.search(pattern, lower):
-            return msg
-    return DEFAULT_MESSAGE
+    """Extract the user's actual message by stripping scheduling noise."""
+    msg = re.sub(
+        r'^(create|set\s*up|schedule|add|remind\s*me\s*to?|send\s*me)\s+',
+        '', text.strip(), flags=re.IGNORECASE,
+    )
+    # Strip "a/an" article left at the start after prefix removal
+    msg = re.sub(r'^(an?\s+)', '', msg, flags=re.IGNORECASE)
+    # Strip "in N minutes/min/m" for one-shot
+    msg = re.sub(r'\s*\bin\s+\d+\s*(minutes?|min|m)\b', '', msg, flags=re.IGNORECASE)
+    # Strip channel references
+    msg = re.sub(r'\s+on\s+(telegram|whatsapp|slack|discord|signal)\b', '', msg, flags=re.IGNORECASE)
+    # Strip time references
+    msg = re.sub(r'\s+at\s+\d{1,2}[.:]\d{2}\s*(am|pm)?', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'\s+at\s+\d{1,2}\s*(am|pm)', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'\s+at\s+(noon|midnight)', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'^at\s+\d{1,2}[.:]\d{2}\s*(am|pm)?', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'^at\s+\d{1,2}\s*(am|pm)', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'^at\s+(noon|midnight)', '', msg, flags=re.IGNORECASE)
+    # Strip frequency words
+    msg = re.sub(r'\b(a\s+)?(daily|weekly|monthly|hourly|every\s+\d+\s+(hours?|minutes?|min|m))\s*', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'\bevery\s*(day|hour)\b', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?)\b', '', msg, flags=re.IGNORECASE)
+    msg = re.sub(r'\bweekdays?\b', '', msg, flags=re.IGNORECASE)
+    # Clean up
+    msg = msg.strip().strip('"\'').strip()
+    return msg if msg else 'Reminder'
 
 
 def _generate_name(text, freq_type):
@@ -186,7 +198,7 @@ def _generate_name(text, freq_type):
 
 def _is_one_shot(freq_type):
     """Determine if the schedule is one-shot (not repeating)."""
-    return freq_type == 'in_minutes'
+    return freq_type in ('in_minutes', 'at_clock')
 
 
 def parse(text):
@@ -197,6 +209,14 @@ def parse(text):
     """
     time = _parse_time(text)
     freq_type, freq_value = _parse_frequency(text)
+
+    # Resolve the 'default' freq_type (no explicit frequency keyword matched)
+    if freq_type == 'default':
+        if time is not None:
+            freq_type = 'at_clock'
+        else:
+            freq_type = 'daily'
+
     channel = _parse_channel(text)
     destination = _parse_destination(text, channel)
     message = _parse_message(text)
@@ -229,15 +249,25 @@ def build_command(parsed):
     Returns the command string. Raises ValueError on missing required fields.
     """
     parts = ['openclaw cron add']
-    parts.append(f'--name "{parsed["name"]}"')
+    parts.append(f'--name {shlex.quote(parsed["name"])}')
 
     freq = parsed['freq_type']
     fval = parsed['freq_value']
     time = parsed.get('time')
 
-    if parsed['one_shot']:
-        # in_minutes -> --at "<N>m"
+    if freq == 'in_minutes':
         parts.append(f'--at "{fval}m"')
+    elif freq == 'at_clock':
+        # Build ISO timestamp for next occurrence of this clock time
+        tz = ZoneInfo('America/New_York')
+        now = datetime.now(tz)
+        target = now.replace(
+            hour=time['hour'], minute=time['minute'], second=0, microsecond=0,
+        )
+        if target <= now:
+            target += timedelta(days=1)
+        iso = target.isoformat()
+        parts.append(f'--at {shlex.quote(iso)}')
     elif freq == 'every_n_hours':
         parts.append(f'--every "{fval}h"')
     elif freq == 'every_n_minutes':
@@ -264,10 +294,10 @@ def build_command(parsed):
         parts.append(f'--cron "{cron}" --tz "America/New_York"')
 
     parts.append('--session isolated')
-    parts.append(f'--message "Output exactly: {parsed["message"]}"')
+    parts.append(f'--message {shlex.quote("Output exactly: " + parsed["message"])}')
     parts.append('--deliver')
-    parts.append(f'--channel {parsed["channel"]}')
-    parts.append(f'--to {parsed["destination"]}')
+    parts.append(f'--channel {shlex.quote(parsed["channel"])}')
+    parts.append(f'--to {shlex.quote(parsed["destination"])}')
 
     if parsed['one_shot']:
         parts.append('--delete-after-run')

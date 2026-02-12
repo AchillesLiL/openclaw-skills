@@ -132,20 +132,3 @@ openclaw cron add \
 | `weekly` | Weekly (defaults to Monday) |
 | `monthly` | Monthly (1st of month) |
 
-### Channels
-
-Mention the channel in your request:
-- "on telegram" / "on whatsapp" / "on slack" / "on discord" / "on signal"
-
----
-
-## Default Messages
-
-| Type | Default Message |
-|------|-----------------|
-| Ikigai | Morning journal with purpose, food, movement, connection, gratitude |
-| Water | "Time to drink water! Stay hydrated!" |
-| Morning | "Good morning! Time for your daily check-in." |
-| Evening | "Evening check-in! How was your day?" |
-| Weekly | Weekly goals review |
-| Default | "Your scheduled reminder is here!" |
