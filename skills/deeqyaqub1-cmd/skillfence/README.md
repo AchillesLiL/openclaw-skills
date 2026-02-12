@@ -79,8 +79,8 @@ SkillFence scans the skill's files and returns a verdict: DANGEROUS / SUSPICIOUS
 
 ## Security
 
-- **Read-only** — SkillFence monitors and reports. It never modifies, deletes, or executes anything.
-- **No data leaves your machine** — all scanning happens locally
+- **Read-only** — SkillFence monitors and reports. It never modifies, deletes, or executes anything. Credential checks only read file metadata (timestamps), never file contents.
+- **No data leaves your machine** — all scanning happens locally. This skill never makes outbound network requests.
 - **No API keys required** — works entirely offline
 - **Open source** — read every line before you install
 - **Audit trail** — every scan, alert, and block is logged with timestamps
@@ -100,13 +100,14 @@ But most attacks are unsophisticated. The entire ClawHavoc campaign used basic `
 
 Free tier includes all monitoring features, unlimited scans.
 
-[SkillFence Pro](https://cascadeai.dev/skillfence) unlocks:
+[SkillFence Pro](https://cascadeai.dev/skillfence) is a separate web dashboard that unlocks:
 
 - 📊 Persistent threat dashboard across sessions
 - 📧 Weekly security digest reports
 - 🔧 Custom threat rules (add your own patterns)
-- 🚨 Webhook alerts (Slack/Discord/Telegram)
 - 🧩 Priority threat intelligence updates
+
+**Pro features run on the CascadeAI web dashboard, not inside this skill.**
 
 ## Verify It Works
 
