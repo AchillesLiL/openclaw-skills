@@ -4,7 +4,6 @@ Permission auditor for [OpenClaw](https://github.com/openclaw/openclaw), [Claude
 
 Reports exactly what system resources each installed skill accesses: network, subprocess, file I/O, environment variables, and unsafe operations like eval/pickle.
 
-**Want automated enforcement?** Upgrade to Pro — revocation, quarantine, and policy enforcement. [Get Pro access](https://github.com/sponsors/AtlasPA).
 
 ## Install
 
@@ -41,9 +40,7 @@ python3 scripts/arbiter.py status
 | Crypto | LOW | hashlib, hmac, ssl |
 | File Read | LOW | open('r'), os.walk, glob |
 
-## Free vs Pro
 
-| Feature | Free | [Pro](https://github.com/sponsors/AtlasPA) |
 |---------|------|-----|
 | Permission detection | Yes | Yes |
 | Permission matrix | Yes | Yes |

@@ -1,6 +1,5 @@
 ---
 name: openclaw-arbiter
-description: "Audit installed skill permissions: detect network access, subprocess execution, file writes, unsafe deserialization, and environment variable usage. Permission matrix for every skill in your workspace. Free alert layer — upgrade to openclaw-arbiter-pro for revocation, quarantine, and policy enforcement."
 user-invocable: true
 metadata: {"openclaw":{"emoji":"⚖️","requires":{"bins":["python3"]},"os":["darwin","linux","win32"]}}
 ---
@@ -13,7 +12,6 @@ Audits installed skills to report exactly what system resources each one accesse
 
 You install skills and trust them blindly. A skill that claims to format markdown could also open network connections, execute shell commands, or read your environment variables. Nothing reports what permissions each skill actually uses.
 
-**Need automated enforcement?** Upgrade to [openclaw-arbiter-pro](https://github.com/AtlasPA/openclaw-arbiter-pro) for revocation, quarantine, and policy enforcement.
 
 ## Commands
 
