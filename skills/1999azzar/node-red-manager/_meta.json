@@ -1,0 +1,11 @@
+{
+  "owner": "1999azzar",
+  "slug": "node-red-manager",
+  "displayName": "Node Red Manager",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1770939037057,
+    "commit": null
+  },
+  "history": []
+}
