@@ -10,12 +10,13 @@ const { uploadFile } = require('./send.js');
 async function main() {
     program
       .option('--file <path>', 'File path to upload')
+      .option('--parent-node <token>', 'Drive folder token (overrides FEISHU_DRIVE_UPLOAD_FOLDER_TOKEN)')
       .parse(process.argv);
 
     const options = program.opts();
 
     if (!options.file) {
-        console.error('Usage: node skills/feishu-file/upload.js --file <path>');
+        console.error('Usage: node skills/feishu-file/upload.js --file <path> [--parent-node <token>]');
         process.exit(1);
     }
 
@@ -26,18 +27,13 @@ async function main() {
     }
 
     try {
-        // Reuse the upload logic from send.js (which handles token and FormData)
-        // We need to import getToken locally if send.js doesn't export it, 
-        // but send.js exports { sendFileMessage, uploadFile }.
-        // uploadFile signature: async function uploadFile(token, filePath)
-        
-        // We need to get the token here since uploadFile expects it.
-        const { getToken } = require('../feishu-common/index.js');
+        const { getToken } = require('../common/feishu-client.js');
         const token = await getToken();
 
-        const fileKey = await uploadFile(token, filePath);
-        
-        // Output JSON for tool parsing
+        const fileKey = await uploadFile(token, filePath, {
+            parentNode: options.parentNode || undefined
+        });
+
         console.log(JSON.stringify({
             status: "success",
             file_key: fileKey,

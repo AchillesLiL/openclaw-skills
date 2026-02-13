@@ -6,13 +6,13 @@ const { pipeline } = require('stream/promises');
 const { Readable } = require('stream');
 
 // Import robust shared client (Deduplication & Reliability)
-// Preferred dependency: feishu-common
+// Uses ../feishu-post/utils/feishu-client.js
 let getToken;
 try {
-    const client = require('../feishu-common/index.js');
+    const client = require('../feishu-post/utils/feishu-client.js');
     getToken = client.getToken;
 } catch (e) {
-    console.error('Dependency Missing: feishu-common (../feishu-common/index.js)');
+    console.error('❌ Dependency Missing: ../feishu-post/utils/feishu-client.js');
     process.exit(1);
 }
 
@@ -82,19 +82,33 @@ async function run() {
     try {
         console.log(`[Feishu-File] Initializing download for ${options.fileKey} (Type: ${options.type})...`);
         
-        // Construct URL
-        let url;
-        if (options.messageId) {
-            // Get Resource from Message (Context-aware, works for received files)
-            const typeParam = options.type ? `?type=${options.type}` : '';
-            url = `https://open.feishu.cn/open-apis/im/v1/messages/${options.messageId}/resources/${options.fileKey}${typeParam}`;
+        // Primary URL (with message_id when provided) and fallback URL (without message_id)
+        const typeParam = options.type ? `?type=${options.type}` : '';
+        let primaryUrl, fallbackUrl;
+        if (options.type === 'file') {
+            primaryUrl = options.messageId
+                ? `https://open.feishu.cn/open-apis/im/v1/messages/${options.messageId}/resources/${options.fileKey}${typeParam}`
+                : null;
+            fallbackUrl = `https://open.feishu.cn/open-apis/drive/v1/files/${options.fileKey}/download`;
         } else {
-            // Direct File Access (Usually for bot-uploaded files)
-            url = `https://open.feishu.cn/open-apis/im/v1/files/${options.fileKey}`;
+            primaryUrl = options.messageId
+                ? `https://open.feishu.cn/open-apis/im/v1/messages/${options.messageId}/resources/${options.fileKey}${typeParam}`
+                : `https://open.feishu.cn/open-apis/im/v1/files/${options.fileKey}`;
+            fallbackUrl = `https://open.feishu.cn/open-apis/im/v1/files/${options.fileKey}`;
         }
-        
-        await downloadFile(url, options.output);
-        
+        const url = primaryUrl !== null ? primaryUrl : fallbackUrl;
+        const hasFallback = options.messageId && primaryUrl !== null && primaryUrl !== fallbackUrl;
+
+        try {
+            await downloadFile(url, options.output);
+        } catch (firstErr) {
+            if (hasFallback) {
+                console.warn(`[Feishu-File] Message-scoped download failed (${firstErr.message}), retrying without message_id...`);
+                await downloadFile(fallbackUrl, options.output);
+            } else {
+                throw firstErr;
+            }
+        }
     } catch (e) {
         console.error('❌ Download Job Failed:', e.message);
         process.exit(1);
